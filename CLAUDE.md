@@ -1,0 +1,126 @@
+# Claude Context for Forage
+
+This file provides context for Claude (or other AI assistants) when working on this project.
+
+## Project Purpose
+
+Forage is a personal tool for scraping private Facebook groups to analyze community discussions. The owner uses it to:
+- Understand what's popular in their local community
+- Identify trends and common topics
+- Gather data for potential app ideas
+
+## Technology Choices
+
+| Choice | Why |
+|--------|-----|
+| Python | Fast iteration, good scraping ecosystem |
+| Playwright | Best browser automation, handles modern SPAs |
+| Click | Clean CLI framework |
+| Pydantic | Type-safe data models, automatic JSON |
+| uv | Fast Python package management |
+| ty | Astral's type checker (fast, modern) |
+
+## Development Workflow
+
+```bash
+# Always use uv, not python directly
+uv sync                           # Install deps
+uv run forage --help              # Run CLI
+uv run ty check src/              # Type check
+uv run pytest                     # Tests
+```
+
+## Code Style
+
+- Type hints on all functions
+- Docstrings for public functions
+- Use `from __future__ import annotations` for forward refs
+- Prefer explicit over implicit
+- Handle exceptions gracefully (scraping is brittle)
+
+## Key Implementation Details
+
+### The Scraping Flow
+
+1. `cli.py:scrape()` - Entry point, builds options
+2. `scraper.py:scrape_group()` - Main loop
+3. For each post in feed:
+   - `parser.py:parse_modern_post()` - Extract post data
+   - If comments enabled: `scraper.py:scrape_post_comments()` or `scrape_comments_from_post_page()`
+4. Apply filters (min_reactions, top_comments)
+5. Return `ScrapeResult` (serializes to JSON)
+
+### Authentication Flow
+
+1. `cli.py:login()` - Opens browser
+2. `auth.py:login()` - Waits for user to log in
+3. Saves `storage_state.json` (cookies + storage)
+4. Future runs load this state into browser context
+
+### HTML Parsing Strategy
+
+Facebook's React UI has deeply nested, frequently-changing HTML. Strategy:
+1. Find stable containers (`[data-pagelet^="FeedUnit"]`)
+2. Extract text content
+3. Use heuristics to identify author, content, timestamps
+4. Fall back gracefully when selectors fail
+
+## Common Issues & Solutions
+
+### "Session expired" errors
+- Session cookies expire (~30 days)
+- Run `forage login` again
+- CLI auto-prompts for re-login
+
+### Scraper finds 0 posts
+- Facebook changed their HTML structure
+- Run with `--no-headless -v` to debug
+- Check console for selector matches
+- Update selectors in `parser.py`
+
+### Rate limiting / blocked
+- Increase `--delay` (try 5-10 seconds)
+- Take breaks between large scrapes
+- May need to wait 24h if blocked
+
+### Comments not loading
+- Facebook loads comments lazily
+- The scraper tries to click "View more comments"
+- May need to navigate to post page
+
+## Future Improvements
+
+- [ ] Async scraping for performance
+- [ ] Better timestamp parsing
+- [ ] Individual reaction types (like/love/haha)
+- [ ] Media URL extraction
+- [ ] Export to CSV/SQLite
+- [ ] Retry logic with exponential backoff
+
+## Testing Tips
+
+When making changes:
+1. Test with a small limit first: `--limit 3`
+2. Use `--skip-comments` for faster iteration
+3. Use `--no-headless -v` to see what's happening
+4. Check the JSON output structure is correct
+
+## Important Files
+
+| File | Purpose |
+|------|---------|
+| `cli.py` | All CLI commands and options |
+| `scraper.py` | Scraping logic, browser control |
+| `parser.py` | HTML parsing, data extraction |
+| `models.py` | Pydantic models (Post, Comment, etc.) |
+| `auth.py` | Session management |
+
+## Fragile Code Warnings
+
+These areas break frequently due to Facebook changes:
+
+1. **`parser.py:parse_modern_post()`** - Post extraction heuristics
+2. **`scraper.py` selectors** - `[data-pagelet^="FeedUnit"]` etc.
+3. **Timestamp parsing** - Many edge cases
+
+When something breaks, check these first.
