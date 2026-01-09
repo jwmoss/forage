@@ -148,3 +148,75 @@ class TestScrapeOptions:
         assert options.skip_comments is True
         assert options.min_reactions == 10
         assert options.top_comments == 5
+
+
+class TestNormalizeGroupIdentifierEdgeCases:
+    """Edge case tests for normalize_group_identifier."""
+
+    def test_mobile_url(self) -> None:
+        """Test mobile Facebook URL."""
+        url = "https://m.facebook.com/groups/mycityfoodies"
+        assert normalize_group_identifier(url) == "mycityfoodies"
+
+    def test_url_with_fragment(self) -> None:
+        """Test URL with fragment."""
+        url = "https://www.facebook.com/groups/mycityfoodies#posts"
+        # Fragment should be stripped or ignored
+        result = normalize_group_identifier(url)
+        assert "mycityfoodies" in result
+
+    def test_very_long_slug(self) -> None:
+        """Test very long group slug."""
+        slug = "a" * 100
+        assert normalize_group_identifier(slug) == slug
+
+    def test_slug_with_underscores(self) -> None:
+        """Test slug with underscores."""
+        assert normalize_group_identifier("my_city_foodies") == "my_city_foodies"
+
+    def test_empty_string(self) -> None:
+        """Test empty string."""
+        assert normalize_group_identifier("") == ""
+
+
+class TestCalculateDateRangeEdgeCases:
+    """Edge case tests for calculate_date_range."""
+
+    def test_since_after_until(self) -> None:
+        """Test when since is after until."""
+        options = ScrapeOptions(since="2024-01-15", until="2024-01-01")
+        since, until = calculate_date_range(options)
+        # Should still return the dates as specified
+        assert since > until
+
+    def test_same_day_range(self) -> None:
+        """Test single day range."""
+        options = ScrapeOptions(since="2024-01-15", until="2024-01-15")
+        since, until = calculate_date_range(options)
+        assert since.date() == until.date()
+
+    def test_very_large_days(self) -> None:
+        """Test very large days value."""
+        options = ScrapeOptions(days=365)
+        since, until = calculate_date_range(options)
+        diff = until - since
+        assert diff.days == 365
+
+
+class TestRandomDelayEdgeCases:
+    """Edge case tests for random_delay."""
+
+    def test_zero_base(self) -> None:
+        """Test zero base delay."""
+        delay = random_delay(0, 0)
+        assert delay == 0
+
+    def test_zero_variance(self) -> None:
+        """Test zero variance."""
+        delay = random_delay(1.0, 0)
+        assert delay == 1.0
+
+    def test_large_variance(self) -> None:
+        """Test when variance equals base."""
+        delay = random_delay(1.0, 1.0)
+        assert 0 <= delay <= 2.0
