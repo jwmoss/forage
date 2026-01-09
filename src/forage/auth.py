@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Optional
 
@@ -40,7 +39,9 @@ def login(
 
     console.print("[bold]Opening browser for Facebook login...[/bold]")
     console.print("Please log into Facebook in the browser window.")
-    console.print("Once logged in, press [bold green]Enter[/bold green] here to save your session.")
+    console.print(
+        "Once logged in, press [bold green]Enter[/bold green] here to save your session."
+    )
 
     with sync_playwright() as p:
         browser = getattr(p, browser_type).launch(headless=False)
@@ -77,7 +78,9 @@ def load_context(
 def is_logged_in_page(page: Page) -> bool:
     """Check if the current page shows a logged-in state."""
     try:
-        page.goto("https://www.facebook.com", timeout=10000, wait_until="domcontentloaded")
+        page.goto(
+            "https://www.facebook.com", timeout=10000, wait_until="domcontentloaded"
+        )
         page.wait_for_timeout(2000)
 
         logged_in_indicators = [

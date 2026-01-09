@@ -19,57 +19,65 @@ def export_to_csv(result: ScrapeResult, output_path: Path) -> None:
     # Posts CSV
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "post_id",
-            "author_name",
-            "author_profile_url",
-            "content",
-            "timestamp",
-            "reactions_total",
-            "comments_count",
-            "group_name",
-            "group_id",
-        ])
+        writer.writerow(
+            [
+                "post_id",
+                "author_name",
+                "author_profile_url",
+                "content",
+                "timestamp",
+                "reactions_total",
+                "comments_count",
+                "group_name",
+                "group_id",
+            ]
+        )
 
         for post in result.posts:
-            writer.writerow([
-                post.id,
-                post.author.name if post.author else "",
-                post.author.profile_url if post.author else "",
-                post.content or "",
-                post.timestamp.isoformat() if post.timestamp else "",
-                post.reactions.total if post.reactions else 0,
-                post.comments_count,
-                result.group.name,
-                result.group.id,
-            ])
+            writer.writerow(
+                [
+                    post.id,
+                    post.author.name if post.author else "",
+                    post.author.profile_url if post.author else "",
+                    post.content or "",
+                    post.timestamp.isoformat() if post.timestamp else "",
+                    post.reactions.total if post.reactions else 0,
+                    post.comments_count,
+                    result.group.name,
+                    result.group.id,
+                ]
+            )
 
     # Comments CSV (separate file)
     comments_path = output_path.with_suffix(".comments.csv")
     with open(comments_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "comment_id",
-            "post_id",
-            "parent_comment_id",
-            "author_name",
-            "author_profile_url",
-            "content",
-            "timestamp",
-            "reactions_total",
-        ])
+        writer.writerow(
+            [
+                "comment_id",
+                "post_id",
+                "parent_comment_id",
+                "author_name",
+                "author_profile_url",
+                "content",
+                "timestamp",
+                "reactions_total",
+            ]
+        )
 
         def write_comment(comment, post_id, parent_id=""):
-            writer.writerow([
-                comment.id,
-                post_id,
-                parent_id,
-                comment.author.name if comment.author else "",
-                comment.author.profile_url if comment.author else "",
-                comment.content or "",
-                comment.timestamp.isoformat() if comment.timestamp else "",
-                comment.reactions.total if comment.reactions else 0,
-            ])
+            writer.writerow(
+                [
+                    comment.id,
+                    post_id,
+                    parent_id,
+                    comment.author.name if comment.author else "",
+                    comment.author.profile_url if comment.author else "",
+                    comment.content or "",
+                    comment.timestamp.isoformat() if comment.timestamp else "",
+                    comment.reactions.total if comment.reactions else 0,
+                ]
+            )
             for reply in comment.replies:
                 write_comment(reply, post_id, parent_id=comment.id)
 
@@ -184,7 +192,9 @@ def export_to_sqlite(result: ScrapeResult, db_path: Path) -> None:
 
         # Insert comments recursively
         def insert_comment(comment, parent_id=None):
-            comment_timestamp = comment.timestamp.isoformat() if comment.timestamp else None
+            comment_timestamp = (
+                comment.timestamp.isoformat() if comment.timestamp else None
+            )
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO comments (

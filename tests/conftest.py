@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 if TYPE_CHECKING:
-    from playwright.sync_api import ElementHandle, Page
+    pass
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -23,14 +23,18 @@ def fixtures_dir() -> Path:
 
 def create_mock_element(html_content: str) -> MagicMock:
     """Create a mock ElementHandle from HTML content."""
-    mock = MagicMock(spec=["inner_text", "query_selector", "query_selector_all", "get_attribute"])
+    mock = MagicMock(
+        spec=["inner_text", "query_selector", "query_selector_all", "get_attribute"]
+    )
 
     # Parse basic text content (simplified)
     import re
 
     # Extract text between tags
-    text_content = re.sub(r'<[^>]+>', '\n', html_content)
-    text_content = '\n'.join(line.strip() for line in text_content.split('\n') if line.strip())
+    text_content = re.sub(r"<[^>]+>", "\n", html_content)
+    text_content = "\n".join(
+        line.strip() for line in text_content.split("\n") if line.strip()
+    )
     mock.inner_text.return_value = text_content
 
     # Mock query_selector to return nested mocks
@@ -39,7 +43,7 @@ def create_mock_element(html_content: str) -> MagicMock:
 
         # Handle strong tags
         if selector == "strong":
-            match = re.search(r'<strong>([^<]+)</strong>', html_content)
+            match = re.search(r"<strong>([^<]+)</strong>", html_content)
             if match:
                 nested.inner_text.return_value = match.group(1)
                 nested.query_selector.return_value = None
@@ -52,7 +56,9 @@ def create_mock_element(html_content: str) -> MagicMock:
             matches = re.findall(pattern, html_content)
             if matches:
                 nested.get_attribute.return_value = matches[0]
-                nested.inner_text.return_value = matches[0].split()[0] if matches[0] else ""
+                nested.inner_text.return_value = (
+                    matches[0].split()[0] if matches[0] else ""
+                )
                 return nested
             return None
 
@@ -80,7 +86,7 @@ def create_mock_element(html_content: str) -> MagicMock:
                 results.append(m)
 
         # Handle links
-        if 'a[href]' in selector or 'a[role="link"]' in selector:
+        if "a[href]" in selector or 'a[role="link"]' in selector:
             pattern = r'<a[^>]*href="([^"]*)"[^>]*>([^<]*)</a>'
             matches = re.findall(pattern, html_content)
             for href, text in matches:
@@ -110,7 +116,16 @@ def create_mock_element(html_content: str) -> MagicMock:
 @pytest.fixture
 def mock_page() -> MagicMock:
     """Create a mock Page object."""
-    return MagicMock(spec=["query_selector", "query_selector_all", "goto", "wait_for_timeout", "title", "url"])
+    return MagicMock(
+        spec=[
+            "query_selector",
+            "query_selector_all",
+            "goto",
+            "wait_for_timeout",
+            "title",
+            "url",
+        ]
+    )
 
 
 @pytest.fixture

@@ -54,8 +54,8 @@ wheels = [
 ]
 
 [[package]]
-name = "forage"
-version = "0.1.0"
+name = "foragefacebook"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
