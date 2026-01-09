@@ -116,7 +116,7 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
     try:
         # Get all text content from the article
         all_text = article.inner_text()
-        lines = [l.strip() for l in all_text.split("\n") if l.strip()]
+        lines = [line.strip() for line in all_text.split("\n") if line.strip()]
 
         # Author is typically in a link with user profile - look for the first prominent link
         author_name = "Unknown"
@@ -137,8 +137,15 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
                 href = link.get_attribute("href") or ""
                 link_text = link.inner_text().strip()
                 # Author links typically have short text (names) and point to profiles
-                if (len(link_text) > 2 and len(link_text) < 50 and
-                    ("facebook.com/" in href and "/groups/" not in href and "?" not in href.split("/")[-1])):
+                if (
+                    len(link_text) > 2
+                    and len(link_text) < 50
+                    and (
+                        "facebook.com/" in href
+                        and "/groups/" not in href
+                        and "?" not in href.split("/")[-1]
+                    )
+                ):
                     author_name = link_text
                     profile_url = href
                     break
@@ -159,8 +166,10 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         # Skip posts that are clearly non-content (suggestions, sponsored, etc.)
         skip_posts = [
-            "People you may know", "\ufeffPeople you may know",
-            "Suggested for you", "Groups you might like"
+            "People you may know",
+            "\ufeffPeople you may know",
+            "Suggested for you",
+            "Groups you might like",
         ]
         if author_name in skip_posts or any(s in all_text[:100] for s in skip_posts):
             return None
@@ -225,7 +234,9 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         # Find timestamp - look for aria-label with time info or links with timestamps
         timestamp = None
-        time_links = article.query_selector_all('a[href*="/posts/"], a[href*="?story_fbid"]')
+        time_links = article.query_selector_all(
+            'a[href*="/posts/"], a[href*="?story_fbid"]'
+        )
         for link in time_links:
             aria = link.get_attribute("aria-label")
             if aria:
@@ -233,7 +244,10 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
                 if timestamp:
                     break
             link_text = link.inner_text().strip()
-            if link_text and any(t in link_text.lower() for t in ["h", "d", "w", "min", "yesterday", "just now"]):
+            if link_text and any(
+                t in link_text.lower()
+                for t in ["h", "d", "w", "min", "yesterday", "just now"]
+            ):
                 timestamp = parse_timestamp(link_text)
                 if timestamp:
                     break
@@ -249,13 +263,19 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
                     break
 
         if not post_id:
-            post_id = f"post_{hash(content[:50]) % 10**9}" if content else f"post_{id(article)}"
+            post_id = (
+                f"post_{hash(content[:50]) % 10**9}"
+                if content
+                else f"post_{id(article)}"
+            )
 
         # Reactions: look for reaction counts in various places
         reactions = Reactions()
 
         # Try aria-labels first
-        reaction_elements = article.query_selector_all('[aria-label*="reaction"], [aria-label*="like"]')
+        reaction_elements = article.query_selector_all(
+            '[aria-label*="reaction"], [aria-label*="like"]'
+        )
         for elem in reaction_elements:
             aria = elem.get_attribute("aria-label") or ""
             if "reaction" in aria.lower() or "like" in aria.lower():
@@ -279,7 +299,9 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         # Comments count
         comments_count = 0
-        comment_buttons = article.query_selector_all('[aria-label*="comment"], [aria-label*="Comment"]')
+        comment_buttons = article.query_selector_all(
+            '[aria-label*="comment"], [aria-label*="Comment"]'
+        )
         for btn in comment_buttons:
             aria = btn.get_attribute("aria-label") or ""
             match = re.search(r"(\d+)\s*comment", aria.lower())
@@ -301,7 +323,7 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
             comments=[],
         )
 
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -327,7 +349,9 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         if not content:
             paragraphs = article.query_selector_all("p")
-            content_parts = [p.inner_text().strip() for p in paragraphs if p.inner_text().strip()]
+            content_parts = [
+                p.inner_text().strip() for p in paragraphs if p.inner_text().strip()
+            ]
             content = "\n".join(content_parts)
 
         timestamp_elem = article.query_selector("abbr")
@@ -351,7 +375,11 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
                     post_id = match.group(1)
 
         if not post_id:
-            post_id = f"post_{hash(content[:50]) % 10**9}" if content else f"post_{id(article)}"
+            post_id = (
+                f"post_{hash(content[:50]) % 10**9}"
+                if content
+                else f"post_{id(article)}"
+            )
 
         reactions = Reactions()
         reaction_link = article.query_selector('a[href*="/ufi/reaction/"]')
@@ -377,7 +405,7 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
             comments=[],
         )
 
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -407,7 +435,11 @@ def parse_mbasic_comment(comment_div: ElementHandle) -> Optional[Comment]:
 
         comment_id = comment_div.get_attribute("data-commentid")
         if not comment_id:
-            comment_id = f"comment_{hash(content[:30]) % 10**9}" if content else f"comment_{id(comment_div)}"
+            comment_id = (
+                f"comment_{hash(content[:30]) % 10**9}"
+                if content
+                else f"comment_{id(comment_div)}"
+            )
 
         reactions = Reactions()
         reaction_span = comment_div.query_selector('a[href*="reaction"]')
@@ -432,7 +464,7 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
     """Parse a comment from www.facebook.com (modern React UI)."""
     try:
         all_text = element.inner_text()
-        lines = [l.strip() for l in all_text.split("\n") if l.strip()]
+        lines = [line.strip() for line in all_text.split("\n") if line.strip()]
 
         if not lines:
             return None
@@ -450,7 +482,12 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
         for link in links:
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
-            if text and len(text) < 50 and "facebook.com/" in href and "/groups/" not in href:
+            if (
+                text
+                and len(text) < 50
+                and "facebook.com/" in href
+                and "/groups/" not in href
+            ):
                 if author_name == "Unknown":
                     author_name = text
                 profile_url = href
@@ -458,7 +495,15 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
 
         # Content: look for text that's not the author name or UI elements
         content_parts = []
-        skip_words = ["Like", "Reply", "Share", "·", author_name, "See more", "View replies"]
+        skip_words = [
+            "Like",
+            "Reply",
+            "Share",
+            "·",
+            author_name,
+            "See more",
+            "View replies",
+        ]
 
         content_divs = element.query_selector_all('div[dir="auto"]')
         for div in content_divs:
@@ -501,7 +546,9 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
 
         # Try to get reaction count
         reactions = Reactions()
-        reaction_elems = element.query_selector_all('[aria-label*="reaction"], [aria-label*="like"]')
+        reaction_elems = element.query_selector_all(
+            '[aria-label*="reaction"], [aria-label*="like"]'
+        )
         for elem in reaction_elems:
             aria = elem.get_attribute("aria-label") or ""
             if "reaction" in aria.lower():
@@ -549,7 +596,9 @@ def filter_comments(
         filtered = [c for c in filtered if c.reactions.total >= min_reactions]
 
     if top_n > 0:
-        filtered = sorted(filtered, key=lambda c: c.reactions.total, reverse=True)[:top_n]
+        filtered = sorted(filtered, key=lambda c: c.reactions.total, reverse=True)[
+            :top_n
+        ]
 
     for comment in filtered:
         if comment.replies:

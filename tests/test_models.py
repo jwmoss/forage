@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
 
 from forage.models import (
     Author,
@@ -126,7 +125,9 @@ class TestScrapeResult:
     def test_create_result(self) -> None:
         """Test creating ScrapeResult."""
         result = ScrapeResult(
-            group=GroupInfo(id="123", name="Test Group", url="https://fb.com/groups/123"),
+            group=GroupInfo(
+                id="123", name="Test Group", url="https://fb.com/groups/123"
+            ),
             scraped_at=datetime.now(),
             date_range=DateRange(since="2024-01-01", until="2024-01-07"),
             posts=[],
@@ -137,7 +138,9 @@ class TestScrapeResult:
     def test_json_serialization(self) -> None:
         """Test ScrapeResult serializes to JSON."""
         result = ScrapeResult(
-            group=GroupInfo(id="123", name="Test Group", url="https://fb.com/groups/123"),
+            group=GroupInfo(
+                id="123", name="Test Group", url="https://fb.com/groups/123"
+            ),
             scraped_at=datetime(2024, 1, 15, 12, 0, 0),
             date_range=DateRange(since="2024-01-01", until="2024-01-07"),
             posts=[

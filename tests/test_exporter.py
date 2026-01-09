@@ -74,7 +74,9 @@ def sample_result() -> ScrapeResult:
 class TestExportToSqlite:
     """Tests for export_to_sqlite function."""
 
-    def test_creates_database(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_creates_database(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that export creates the database file."""
         db_path = tmp_path / "test.db"
         export_to_sqlite(sample_result, db_path)
@@ -136,7 +138,9 @@ class TestExportToSqlite:
 
         conn.close()
 
-    def test_exports_comments(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_exports_comments(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that comments are exported correctly."""
         db_path = tmp_path / "test.db"
         export_to_sqlite(sample_result, db_path)
@@ -155,7 +159,9 @@ class TestExportToSqlite:
 
         conn.close()
 
-    def test_exports_nested_replies(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_exports_nested_replies(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that nested replies have correct parent_comment_id."""
         db_path = tmp_path / "test.db"
         export_to_sqlite(sample_result, db_path)
@@ -163,7 +169,9 @@ class TestExportToSqlite:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, parent_comment_id FROM comments WHERE id = 'reply_1'")
+        cursor.execute(
+            "SELECT id, parent_comment_id FROM comments WHERE id = 'reply_1'"
+        )
         row = cursor.fetchone()
 
         assert row[0] == "reply_1"
@@ -171,7 +179,9 @@ class TestExportToSqlite:
 
         conn.close()
 
-    def test_upserts_on_duplicate(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_upserts_on_duplicate(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that re-exporting updates existing records."""
         db_path = tmp_path / "test.db"
 
@@ -197,7 +207,9 @@ class TestExportToSqlite:
         """Test exporting result with no posts."""
         db_path = tmp_path / "test.db"
         result = ScrapeResult(
-            group=GroupInfo(id="456", name="Empty Group", url="https://fb.com/groups/456"),
+            group=GroupInfo(
+                id="456", name="Empty Group", url="https://fb.com/groups/456"
+            ),
             scraped_at=datetime.now(),
             date_range=DateRange(since="2024-01-01", until="2024-01-07"),
             posts=[],
@@ -220,14 +232,18 @@ class TestExportToSqlite:
 class TestExportToCsv:
     """Tests for export_to_csv function."""
 
-    def test_creates_posts_file(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_creates_posts_file(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that export creates the posts CSV file."""
         csv_path = tmp_path / "posts.csv"
         export_to_csv(sample_result, csv_path)
 
         assert csv_path.exists()
 
-    def test_creates_comments_file(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_creates_comments_file(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that export creates the comments CSV file."""
         csv_path = tmp_path / "posts.csv"
         export_to_csv(sample_result, csv_path)
@@ -235,7 +251,9 @@ class TestExportToCsv:
         comments_path = tmp_path / "posts.comments.csv"
         assert comments_path.exists()
 
-    def test_posts_csv_content(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_posts_csv_content(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that posts CSV contains correct data."""
         csv_path = tmp_path / "posts.csv"
         export_to_csv(sample_result, csv_path)
@@ -251,7 +269,9 @@ class TestExportToCsv:
         assert rows[0]["reactions_total"] == "42"
         assert rows[1]["post_id"] == "post_2"
 
-    def test_comments_csv_content(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_comments_csv_content(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that comments CSV contains correct data."""
         csv_path = tmp_path / "posts.csv"
         export_to_csv(sample_result, csv_path)
@@ -267,7 +287,9 @@ class TestExportToCsv:
         assert "comment_2" in comment_ids
         assert "reply_1" in comment_ids
 
-    def test_nested_replies_have_parent_id(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_nested_replies_have_parent_id(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that nested replies have correct parent_comment_id."""
         csv_path = tmp_path / "posts.csv"
         export_to_csv(sample_result, csv_path)
@@ -284,7 +306,9 @@ class TestExportToCsv:
         """Test exporting result with no posts."""
         csv_path = tmp_path / "posts.csv"
         result = ScrapeResult(
-            group=GroupInfo(id="456", name="Empty Group", url="https://fb.com/groups/456"),
+            group=GroupInfo(
+                id="456", name="Empty Group", url="https://fb.com/groups/456"
+            ),
             scraped_at=datetime.now(),
             date_range=DateRange(since="2024-01-01", until="2024-01-07"),
             posts=[],

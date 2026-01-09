@@ -1,11 +1,44 @@
 # Forage
 
+[![CI](https://github.com/jwmoss/forage/actions/workflows/ci.yml/badge.svg)](https://github.com/jwmoss/forage/actions/workflows/ci.yml)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](LICENSE)
+
 CLI tool to scrape posts, comments, and reactions from private Facebook groups using browser automation.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Output Formats](#output-format)
+- [Data Analysis](#data-analysis-examples)
+- [Development](#development)
+- [Roadmap](#roadmap)
+- [Security](#security)
+- [Support](#support)
+- [License](#license)
 
 ## Installation
 
+### From PyPI
+
 ```bash
-# Install with uv
+# Install with pip
+pip install ForageFacebook
+
+# Or with uv
+uv pip install ForageFacebook
+
+# Install Playwright browsers
+playwright install chromium
+```
+
+### From Source
+
+```bash
+# Clone and install with uv
+git clone https://github.com/jwmoss/forage.git
+cd forage
 uv sync
 
 # Install Playwright browsers
@@ -60,6 +93,9 @@ uv run forage scrape your-group-slug --no-headless -v
 
 # Slower scraping to avoid rate limits
 uv run forage scrape your-group-slug --delay 5.0
+
+# Read group from stdin (for scripting)
+echo "your-group-slug" | uv run forage scrape -
 ```
 
 ### CLI Reference

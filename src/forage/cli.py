@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,8 +11,6 @@ from rich.console import Console
 
 from forage import __version__
 from forage.auth import (
-    DEFAULT_SESSION_DIR,
-    is_logged_in,
     login as auth_login,
     session_exists,
 )
@@ -198,7 +195,7 @@ def scrape(
     """
     Scrape posts from a Facebook group.
 
-    GROUP can be a full URL, group ID, or group slug.
+    GROUP can be a full URL, group ID, group slug, or '-' to read from stdin.
 
     Examples:
 
@@ -207,7 +204,24 @@ def scrape(
         forage scrape mycityfoodies --days 14
 
         forage scrape 123456789 --since 2024-01-01 --until 2024-01-15
+
+        echo "mycityfoodies" | forage scrape -
     """
+    # Handle stdin input
+    if group == "-":
+        if sys.stdin.isatty():
+            console.print("[red]No input provided on stdin[/red]")
+            raise SystemExit(2)
+        group = sys.stdin.read().strip()
+        if not group:
+            console.print("[red]Empty input from stdin[/red]")
+            raise SystemExit(2)
+        # Take first non-empty line if multiple lines provided
+        group = next((line.strip() for line in group.splitlines() if line.strip()), "")
+        if not group:
+            console.print("[red]No valid group identifier in stdin[/red]")
+            raise SystemExit(2)
+
     options = ScrapeOptions(
         days=days,
         since=since,
@@ -244,7 +258,9 @@ def scrape(
             console.print("[yellow]Session expired or invalid.[/yellow]")
 
         if no_input or not sys.stdin.isatty():
-            console.print("[red]Please run 'forage login' to refresh your session.[/red]")
+            console.print(
+                "[red]Please run 'forage login' to refresh your session.[/red]"
+            )
             raise SystemExit(3)
 
         if click.confirm("Session expired. Re-login?", default=True):
