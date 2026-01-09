@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import random
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional, TypeVar
 
-from playwright.sync_api import Browser, BrowserContext, ElementHandle, Page, sync_playwright
+from playwright.sync_api import Browser, BrowserContext, ElementHandle, Page, sync_playwright, TimeoutError as PlaywrightTimeoutError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+
+T = TypeVar("T")
 
 from forage.auth import load_context, is_logged_in_page, session_exists
 from forage.models import (
@@ -29,6 +33,94 @@ from forage.parser import (
 )
 
 console = Console(stderr=True)
+
+
+def retry_with_backoff(
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 30.0,
+    exponential_base: float = 2.0,
+    exceptions: tuple = (PlaywrightTimeoutError, Exception),
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """
+    Decorator for retrying operations with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay in seconds
+        max_delay: Maximum delay between retries
+        exponential_base: Base for exponential backoff calculation
+        exceptions: Tuple of exceptions to catch and retry
+
+    Returns:
+        Decorated function with retry logic
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> T:
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+
+                    if attempt == max_retries:
+                        raise
+
+                    # Calculate delay with jitter
+                    delay = min(
+                        base_delay * (exponential_base ** attempt),
+                        max_delay
+                    )
+                    # Add random jitter (±25%)
+                    jitter = delay * random.uniform(-0.25, 0.25)
+                    actual_delay = delay + jitter
+
+                    console.print(
+                        f"[yellow]Retry {attempt + 1}/{max_retries}: "
+                        f"waiting {actual_delay:.1f}s after error: {e}[/yellow]"
+                    )
+                    time.sleep(actual_delay)
+
+            # Should never reach here, but satisfy type checker
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError("Retry logic error: no exception captured")
+
+        return wrapper
+    return decorator
+
+
+def navigate_with_retry(
+    page: Page,
+    url: str,
+    max_retries: int = 3,
+    verbose: bool = False,
+) -> None:
+    """Navigate to a URL with retry logic."""
+    base_delay = 2.0
+
+    for attempt in range(max_retries + 1):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            return
+        except (PlaywrightTimeoutError, Exception) as e:
+            if attempt == max_retries:
+                raise
+
+            delay = min(base_delay * (2 ** attempt), 30.0)
+            jitter = delay * random.uniform(-0.25, 0.25)
+            actual_delay = delay + jitter
+
+            if verbose:
+                console.print(
+                    f"[yellow]Navigation retry {attempt + 1}/{max_retries}: "
+                    f"waiting {actual_delay:.1f}s[/yellow]"
+                )
+            time.sleep(actual_delay)
+
 
 # Realistic viewport sizes to rotate through
 VIEWPORT_SIZES = [
@@ -247,8 +339,8 @@ def scrape_comments_from_post_page(
     original_url = page.url
 
     try:
-        # Navigate to the post page
-        page.goto(post_url, wait_until="domcontentloaded")
+        # Navigate to the post page with retry
+        navigate_with_retry(page, post_url, max_retries=2, verbose=options.verbose)
         human_delay(page, options.delay, options.delay * 0.3)
 
         # Wait for comments to load
@@ -346,7 +438,7 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
             console.print(f"Navigating to: {group_url}")
             console.print(f"Viewport: {viewport['width']}x{viewport['height']}")
 
-        page.goto(group_url, wait_until="domcontentloaded")
+        navigate_with_retry(page, group_url, max_retries=3, verbose=options.verbose)
 
         # Wait for feed to load with human-like timing
         try:

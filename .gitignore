@@ -46,3 +46,17 @@ Thumbs.db
 # Project specific
 *.json
 !package.json
+
+# Session data (contains auth cookies - NEVER commit!)
+session/
+*.session
+~/.config/forage/
+
+# Output files (may contain scraped data)
+*.db
+output/
+
+# Environment variables (may contain secrets)
+.env
+.env.local
+.env.*.local

@@ -93,8 +93,37 @@ Commands:
 | `--skip-comments` | `false` | Skip comment fetching |
 | `--skip-reactions` | `false` | Skip reaction counts |
 | `-o, --output` | `-` | Output file (default: stdout) |
+| `-f, --format` | `json` | Output format: json, sqlite, csv |
 | `--no-headless` | `false` | Show browser window |
 | `--browser` | `chromium` | Browser: chromium, firefox, webkit |
+
+### SQLite Export
+
+Export directly to SQLite for easier analysis:
+
+```bash
+# Export to SQLite database
+uv run forage scrape your-group-slug -f sqlite -o data.db
+
+# Query with sqlite3
+sqlite3 data.db "SELECT content, reactions_total FROM posts ORDER BY reactions_total DESC LIMIT 10"
+
+# Join posts with comments
+sqlite3 data.db "SELECT p.content, c.content FROM posts p JOIN comments c ON c.post_id = p.id"
+```
+
+### CSV Export
+
+Export to CSV for spreadsheet analysis:
+
+```bash
+# Export to CSV (creates posts.csv and posts.comments.csv)
+uv run forage scrape your-group-slug -f csv -o posts.csv
+
+# Open in Excel/Numbers/Sheets or analyze with csvkit
+csvstat posts.csv
+csvcut -c author_name,content,reactions_total posts.csv | head -20
+```
 
 ## Output Format
 
@@ -195,6 +224,42 @@ src/forage/
 - Rate limiting may require slower scraping
 - Individual reaction types not broken out (only total)
 - Session cookies expire after ~30 days
+
+## Roadmap
+
+Planned features and improvements:
+
+### High Priority
+- [ ] **Cookie import** - Import cookies from browser extensions (EditThisCookie, Netscape format)
+- [ ] **Incremental scraping** - Only fetch posts newer than last scrape
+- [ ] **Progress persistence** - Resume interrupted scrapes
+
+### Medium Priority
+- [ ] **Multiple groups** - Scrape multiple groups in one command
+- [ ] **Media extraction** - Download images/videos from posts
+- [ ] **Reaction breakdown** - Extract individual reaction types (like, love, etc.)
+- [ ] **Author statistics** - Aggregate stats per author
+- [ ] **Scheduled scraping** - Cron-friendly mode with locking
+
+### Nice to Have
+- [ ] **Web UI** - Local web interface for browsing scraped data
+- [ ] **Webhook notifications** - Notify on new posts matching criteria
+- [ ] **Public group support** - Scrape without login for public groups
+- [ ] **Parallel scraping** - Speed up multi-group scrapes
+
+### Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for security considerations and best practices.
+
+## Support
+
+If you find this tool useful, consider sponsoring development:
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink)](https://github.com/sponsors/jwmoss)
 
 ## License
 

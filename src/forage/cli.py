@@ -143,7 +143,15 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
     "--output",
     type=click.Path(path_type=Path),
     default=None,
-    help="Write JSON to file instead of stdout",
+    help="Write output to file instead of stdout",
+)
+@click.option(
+    "-f",
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "sqlite", "csv"]),
+    default="json",
+    help="Output format (default: json)",
 )
 @click.option(
     "--session-dir",
@@ -181,6 +189,7 @@ def scrape(
     skip_comments: bool,
     skip_reactions: bool,
     output: Optional[Path],
+    output_format: str,
     session_dir: Optional[Path],
     headless: bool,
     browser: str,
@@ -250,14 +259,34 @@ def scrape(
         console.print(f"[red]Error: {e}[/red]")
         raise SystemExit(1)
 
-    json_output = result.model_dump_json(indent=2)
+    if output_format == "sqlite":
+        from forage.exporter import export_to_sqlite
 
-    if output:
-        output.write_text(json_output)
+        if not output:
+            console.print("[red]SQLite format requires --output file path[/red]")
+            raise SystemExit(2)
+        export_to_sqlite(result, output)
         if not ctx.quiet:
-            console.print(f"[green]Output written to {output}[/green]")
+            console.print(f"[green]Data exported to {output}[/green]")
+    elif output_format == "csv":
+        from forage.exporter import export_to_csv
+
+        if not output:
+            console.print("[red]CSV format requires --output file path[/red]")
+            raise SystemExit(2)
+        export_to_csv(result, output)
+        if not ctx.quiet:
+            comments_path = output.with_suffix(".comments.csv")
+            console.print(f"[green]Posts exported to {output}[/green]")
+            console.print(f"[green]Comments exported to {comments_path}[/green]")
     else:
-        click.echo(json_output)
+        json_output = result.model_dump_json(indent=2)
+        if output:
+            output.write_text(json_output)
+            if not ctx.quiet:
+                console.print(f"[green]Output written to {output}[/green]")
+        else:
+            click.echo(json_output)
 
 
 if __name__ == "__main__":
