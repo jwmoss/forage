@@ -24,10 +24,10 @@ CLI tool to scrape posts, comments, and reactions from private Facebook groups u
 
 ```bash
 # Install with pip
-pip install forage
+pip install ForageFacebook
 
 # Or with uv
-uv pip install forage
+uv pip install ForageFacebook
 
 # Install Playwright browsers
 playwright install chromium
