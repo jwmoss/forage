@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024-01-20
+## [1.0.0] - 2025-01-08
 
 ### Added
 
-- Initial release
+- Initial stable release
 - `forage login` command for interactive Facebook authentication
 - `forage scrape` command for scraping posts, comments, and reactions
 - JSON output format (default)
@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Anti-detection features (random delays, viewport rotation)
 - Stdin support for group input (`echo "group" | forage scrape -`)
 - GitHub Actions CI with tests, type checking, and linting
+- PyPI publishing workflow
 - Comprehensive test suite (96 tests)
 - Documentation (README, CONTRIBUTING, SECURITY, AGENTS, CLAUDE)
 
@@ -33,5 +34,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jwmoss/forage/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jwmoss/forage/releases/tag/v1.0.0
