@@ -75,13 +75,28 @@ def load_context(
         return browser.new_context()
 
 
-def is_logged_in_page(page: Page) -> bool:
-    """Check if the current page shows a logged-in state."""
+def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
+    """Check if the current page shows a logged-in state.
+
+    When used during scraping, callers can set `navigate=False` to avoid
+    leaving the current page.
+    """
     try:
-        page.goto(
-            "https://www.facebook.com", timeout=10000, wait_until="domcontentloaded"
-        )
-        page.wait_for_timeout(2000)
+        if navigate:
+            page.goto(
+                "https://www.facebook.com", timeout=10000, wait_until="domcontentloaded"
+            )
+            page.wait_for_timeout(2000)
+
+        login_indicators = [
+            'input[name="email"]',
+            'input[name="pass"]',
+            'button[name="login"]',
+        ]
+
+        for selector in login_indicators:
+            if page.query_selector(selector):
+                return False
 
         logged_in_indicators = [
             '[aria-label="Your profile"]',
@@ -93,16 +108,6 @@ def is_logged_in_page(page: Page) -> bool:
         for selector in logged_in_indicators:
             if page.query_selector(selector):
                 return True
-
-        login_indicators = [
-            'input[name="email"]',
-            'input[name="pass"]',
-            'button[name="login"]',
-        ]
-
-        for selector in login_indicators:
-            if page.query_selector(selector):
-                return False
 
         return True
 

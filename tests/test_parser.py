@@ -131,18 +131,19 @@ class TestParseTimestampEdgeCases:
     def test_with_extra_text(self) -> None:
         """Test timestamp with surrounding text."""
         result = parse_timestamp("Posted 2h ago")
-        # Should still extract the 2h
-        assert result is not None or result is None  # depends on implementation
+        assert result is not None
+        expected = datetime.now() - timedelta(hours=2)
+        assert abs((result - expected).total_seconds()) < 60
 
     def test_months_ago(self) -> None:
         """Test parsing months ago format."""
         result = parse_timestamp("2 months ago")
-        # May or may not be supported
-        assert result is None or result is not None
+        assert result is not None
+        expected = datetime.now() - timedelta(days=60)
+        assert abs((result - expected).total_seconds()) < 60
 
     def test_date_format_variations(self) -> None:
         """Test various date format variations."""
-        # These may or may not be parsed depending on implementation
         formats = [
             "January 15",
             "Jan 15",
@@ -151,8 +152,8 @@ class TestParseTimestampEdgeCases:
         ]
         for fmt in formats:
             result = parse_timestamp(fmt)
-            # Just ensure no exceptions
-            assert result is None or isinstance(result, datetime)
+            assert result is not None
+            assert isinstance(result, datetime)
 
 
 class TestExtractPostIdEdgeCases:
@@ -179,8 +180,7 @@ class TestParseReactionsEdgeCases:
     def test_k_notation(self) -> None:
         """Test K notation for thousands."""
         result = parse_reactions_text("1.2K")
-        # May parse as 1 or handle K notation
-        assert result.total >= 0
+        assert result.total == 1200
 
     def test_emoji_in_text(self) -> None:
         """Test reactions text with emoji."""
@@ -190,7 +190,9 @@ class TestParseReactionsEdgeCases:
     def test_mixed_text(self) -> None:
         """Test reactions with mixed text and numbers."""
         result = parse_reactions_text("42 likes and 10 loves")
-        assert result.total >= 0
+        assert result.like == 42
+        assert result.love == 10
+        assert result.total == 52
 
 
 class TestFilterComments:

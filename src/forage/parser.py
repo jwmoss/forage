@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime, timedelta
 from typing import Optional
@@ -10,6 +11,31 @@ from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import ElementHandle, Page
 
 from forage.models import Author, Comment, Post, Reactions
+
+
+def _stable_id(prefix: str, *parts: str) -> str:
+    hasher = hashlib.sha256()
+    for part in parts:
+        hasher.update(part.encode("utf-8"))
+        hasher.update(b"\0")
+    return f"{prefix}_{hasher.hexdigest()[:16]}"
+
+
+def _parse_compact_int(text: str) -> int:
+    if not text:
+        return 0
+
+    cleaned = text.replace(",", "").strip()
+
+    compact_match = re.search(r"(\d+(?:\.\d+)?)\s*([kKmM])\b", cleaned)
+    if compact_match:
+        number = float(compact_match.group(1))
+        suffix = compact_match.group(2).lower()
+        multiplier = 1_000 if suffix == "k" else 1_000_000
+        return int(number * multiplier)
+
+    match = re.search(r"(\d+)", cleaned)
+    return int(match.group(1)) if match else 0
 
 
 def parse_timestamp(text: str) -> Optional[datetime]:
@@ -28,43 +54,107 @@ def parse_timestamp(text: str) -> Optional[datetime]:
         return None
 
     text = text.strip()
+    if not text:
+        return None
+
     now = datetime.now()
+    lower_text = text.lower()
+
+    if "just now" in lower_text:
+        return now
 
     relative_patterns = [
-        (r"^(\d+)\s*m$", lambda m: now - timedelta(minutes=int(m.group(1)))),
-        (r"^(\d+)\s*h$", lambda m: now - timedelta(hours=int(m.group(1)))),
-        (r"^(\d+)\s*d$", lambda m: now - timedelta(days=int(m.group(1)))),
-        (r"^(\d+)\s*w$", lambda m: now - timedelta(weeks=int(m.group(1)))),
-        (r"^(\d+)\s*min", lambda m: now - timedelta(minutes=int(m.group(1)))),
-        (r"^(\d+)\s*hr", lambda m: now - timedelta(hours=int(m.group(1)))),
-        (r"^Just now", lambda m: now),
+        (
+            r"(\d+)\s*(?:m|min|mins|minute|minutes)\b",
+            lambda n: now - timedelta(minutes=n),
+        ),
+        (
+            r"(\d+)\s*(?:h|hr|hrs|hour|hours)\b",
+            lambda n: now - timedelta(hours=n),
+        ),
+        (r"(\d+)\s*(?:d|day|days)\b", lambda n: now - timedelta(days=n)),
+        (r"(\d+)\s*(?:w|wk|wks|week|weeks)\b", lambda n: now - timedelta(weeks=n)),
+        # Approximate long ranges; most scrapes target recent posts.
+        (r"(\d+)\s*(?:mo|mos|month|months)\b", lambda n: now - timedelta(days=30 * n)),
+        (r"(\d+)\s*(?:y|yr|yrs|year|years)\b", lambda n: now - timedelta(days=365 * n)),
     ]
 
     for pattern, handler in relative_patterns:
-        match = re.match(pattern, text, re.IGNORECASE)
+        match = re.search(pattern, lower_text)
         if match:
-            return handler(match)
+            return handler(int(match.group(1)))
 
-    if text.lower().startswith("yesterday"):
+    if "yesterday" in lower_text:
+        time_match = re.search(
+            r"yesterday\s*(?:at\s*)?(\d{1,2}(?::\d{2})?\s*[APap][Mm])",
+            text,
+        )
+        if time_match:
+            time_str = time_match.group(1).strip().upper()
+            time_str = re.sub(r"\s*(AM|PM)$", r" \1", time_str)
+
+            for time_fmt in ("%I:%M %p", "%I %p"):
+                try:
+                    parsed_time = datetime.strptime(time_str, time_fmt).time()
+                except ValueError:
+                    continue
+
+                yesterday = (now - timedelta(days=1)).date()
+                return datetime.combine(yesterday, parsed_time)
+
         return now - timedelta(days=1)
 
     date_formats = [
         "%B %d, %Y at %I:%M %p",
-        "%B %d at %I:%M %p",
         "%b %d, %Y at %I:%M %p",
-        "%b %d at %I:%M %p",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%d %b %Y",
+        "%d %B %Y",
         "%m/%d/%Y",
         "%m/%d/%y",
     ]
 
     for fmt in date_formats:
         try:
-            parsed = datetime.strptime(text, fmt)
-            if parsed.year == 1900:
-                parsed = parsed.replace(year=now.year)
-            return parsed
+            return datetime.strptime(text, fmt)
         except ValueError:
             continue
+
+    # Yearless month/day formats (avoid strptime default-year deprecation).
+    month_day_at_match = re.match(
+        r"^([A-Za-z]+\.?)\s+(\d{1,2})\s+at\s+(.+)$",
+        text,
+        re.IGNORECASE,
+    )
+    if month_day_at_match:
+        month, day, time_part = month_day_at_match.groups()
+        month = month.rstrip(".")
+        time_str = time_part.strip().upper()
+        time_str = re.sub(r"\s*(AM|PM)$", r" \1", time_str)
+
+        candidate = f"{month} {int(day)} {now.year} at {time_str}"
+        for fmt in (
+            "%B %d %Y at %I:%M %p",
+            "%B %d %Y at %I %p",
+            "%b %d %Y at %I:%M %p",
+            "%b %d %Y at %I %p",
+        ):
+            try:
+                return datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
+
+    month_day_match = re.match(r"^([A-Za-z]+\.?)\s+(\d{1,2})$", text, re.IGNORECASE)
+    if month_day_match:
+        month, day = month_day_match.groups()
+        month = month.rstrip(".")
+        candidate = f"{month} {int(day)} {now.year}"
+        for fmt in ("%B %d %Y", "%b %d %Y"):
+            try:
+                return datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
 
     return None
 
@@ -100,14 +190,37 @@ def parse_reactions_text(text: str) -> Reactions:
     Handles formats like:
     - "42" (total only)
     - "42 reactions"
+    - "1.2K"
     - Individual reaction counts from expanded view
     """
     if not text:
         return Reactions()
 
-    total_match = re.search(r"(\d+)", text.replace(",", ""))
-    total = int(total_match.group(1)) if total_match else 0
+    breakdown: dict[str, int] = {
+        "like": 0,
+        "love": 0,
+        "haha": 0,
+        "wow": 0,
+        "sad": 0,
+        "angry": 0,
+    }
 
+    breakdown_pattern = re.compile(
+        r"(\d+(?:\.\d+)?(?:,\d{3})*)\s*([kKmM])?\s*(like|love|haha|wow|sad|angry)s?\b",
+        re.IGNORECASE,
+    )
+
+    for number, suffix, reaction in breakdown_pattern.findall(text):
+        key = reaction.lower().rstrip("s")
+        count = _parse_compact_int(f"{number}{suffix or ''}")
+        if key in breakdown:
+            breakdown[key] = count
+
+    if any(breakdown.values()):
+        total = sum(breakdown.values())
+        return Reactions(total=total, **breakdown)
+
+    total = _parse_compact_int(text)
     return Reactions(total=total)
 
 
@@ -263,10 +376,11 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
                     break
 
         if not post_id:
-            post_id = (
-                f"post_{hash(content[:50]) % 10**9}"
-                if content
-                else f"post_{id(article)}"
+            post_id = _stable_id(
+                "post",
+                author_name,
+                profile_url or "",
+                content,
             )
 
         # Reactions: look for reaction counts in various places
@@ -375,10 +489,11 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
                     post_id = match.group(1)
 
         if not post_id:
-            post_id = (
-                f"post_{hash(content[:50]) % 10**9}"
-                if content
-                else f"post_{id(article)}"
+            post_id = _stable_id(
+                "post",
+                author_name,
+                profile_url or "",
+                content,
             )
 
         reactions = Reactions()
@@ -435,10 +550,11 @@ def parse_mbasic_comment(comment_div: ElementHandle) -> Optional[Comment]:
 
         comment_id = comment_div.get_attribute("data-commentid")
         if not comment_id:
-            comment_id = (
-                f"comment_{hash(content[:30]) % 10**9}"
-                if content
-                else f"comment_{id(comment_div)}"
+            comment_id = _stable_id(
+                "comment",
+                author_name,
+                profile_url or "",
+                content,
             )
 
         reactions = Reactions()
@@ -542,7 +658,12 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
             return None
 
         # Generate comment ID
-        comment_id = f"comment_{hash(content[:30]) % 10**9}"
+        comment_id = _stable_id(
+            "comment",
+            author_name,
+            profile_url or "",
+            content,
+        )
 
         # Try to get reaction count
         reactions = Reactions()
