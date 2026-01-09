@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -12,8 +11,6 @@ from rich.console import Console
 
 from forage import __version__
 from forage.auth import (
-    DEFAULT_SESSION_DIR,
-    is_logged_in,
     login as auth_login,
     session_exists,
 )
@@ -261,7 +258,9 @@ def scrape(
             console.print("[yellow]Session expired or invalid.[/yellow]")
 
         if no_input or not sys.stdin.isatty():
-            console.print("[red]Please run 'forage login' to refresh your session.[/red]")
+            console.print(
+                "[red]Please run 'forage login' to refresh your session.[/red]"
+            )
             raise SystemExit(3)
 
         if click.confirm("Session expired. Re-login?", default=True):

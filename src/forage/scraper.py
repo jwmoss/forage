@@ -5,25 +5,29 @@ from __future__ import annotations
 import random
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional, TypeVar
 
-from playwright.sync_api import Browser, BrowserContext, ElementHandle, Page, sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import (
+    Browser,
+    BrowserContext,
+    ElementHandle,
+    Page,
+    sync_playwright,
+    TimeoutError as PlaywrightTimeoutError,
+)
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-T = TypeVar("T")
-
-from forage.auth import load_context, is_logged_in_page, session_exists
+from forage.auth import load_context, is_logged_in_page
 from forage.models import (
     Comment,
     DateRange,
     GroupInfo,
     Post,
-    Reactions,
     ScrapeResult,
 )
 from forage.parser import (
@@ -31,6 +35,8 @@ from forage.parser import (
     parse_modern_post,
     parse_modern_comment,
 )
+
+T = TypeVar("T")
 
 console = Console(stderr=True)
 
@@ -55,6 +61,7 @@ def retry_with_backoff(
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
@@ -70,10 +77,7 @@ def retry_with_backoff(
                         raise
 
                     # Calculate delay with jitter
-                    delay = min(
-                        base_delay * (exponential_base ** attempt),
-                        max_delay
-                    )
+                    delay = min(base_delay * (exponential_base**attempt), max_delay)
                     # Add random jitter (±25%)
                     jitter = delay * random.uniform(-0.25, 0.25)
                     actual_delay = delay + jitter
@@ -90,6 +94,7 @@ def retry_with_backoff(
             raise RuntimeError("Retry logic error: no exception captured")
 
         return wrapper
+
     return decorator
 
 
@@ -106,11 +111,11 @@ def navigate_with_retry(
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             return
-        except (PlaywrightTimeoutError, Exception) as e:
+        except (PlaywrightTimeoutError, Exception):
             if attempt == max_retries:
                 raise
 
-            delay = min(base_delay * (2 ** attempt), 30.0)
+            delay = min(base_delay * (2**attempt), 30.0)
             jitter = delay * random.uniform(-0.25, 0.25)
             actual_delay = delay + jitter
 
@@ -229,16 +234,12 @@ def extract_group_info(page: Page, group_id: str) -> GroupInfo:
     )
 
 
-def create_browser_context(browser: Browser, session_dir: Optional[Path] = None) -> BrowserContext:
+def create_browser_context(
+    browser: Browser, session_dir: Optional[Path] = None
+) -> BrowserContext:
     """Create a browser context with anti-detection settings."""
-    # Pick a random viewport size
-    viewport = random.choice(VIEWPORT_SIZES)
-
     context = load_context(browser, session_dir)
-
-    # Set viewport on context
     context.set_default_timeout(30000)
-
     return context
 
 
@@ -258,10 +259,6 @@ def scrape_post_comments(
     comments: list[Comment] = []
 
     try:
-        # First try to find and click "View more comments" to load all comments
-        # Look for comment section within the article
-        comment_section = article.query_selector('[aria-label*="Comment"], [aria-label*="comment"]')
-
         # Find all comment containers
         # Modern Facebook comments are in divs with specific structure
         comment_elements = article.query_selector_all('div[role="article"]')
@@ -305,7 +302,11 @@ def scrape_post_comments(
         expanded_comments = article.query_selector_all('div[role="article"]')
         for elem in expanded_comments:
             comment = parse_modern_comment(elem)
-            if comment and comment.content and comment.id not in [c.id for c in comments]:
+            if (
+                comment
+                and comment.content
+                and comment.id not in [c.id for c in comments]
+            ):
                 comments.append(comment)
 
     except Exception as e:
@@ -352,7 +353,9 @@ def scrape_comments_from_post_page(
         # Click "View more comments" buttons to expand all
         for _ in range(3):  # Try up to 3 times to load more
             try:
-                view_more = page.query_selector('span:has-text("View more comments"), span:has-text("View all")')
+                view_more = page.query_selector(
+                    'span:has-text("View more comments"), span:has-text("View all")'
+                )
                 if view_more:
                     view_more.click()
                     human_delay(page, options.delay * 0.5, options.delay * 0.2)
@@ -372,7 +375,9 @@ def scrape_comments_from_post_page(
                     comments.append(comment)
 
         # Also try to get nested replies
-        reply_elements = page.query_selector_all('div[role="article"] div[role="article"]')
+        reply_elements = page.query_selector_all(
+            'div[role="article"] div[role="article"]'
+        )
         for elem in reply_elements:
             reply = parse_modern_comment(elem)
             if reply and reply.content:
@@ -385,7 +390,9 @@ def scrape_comments_from_post_page(
 
     except Exception as e:
         if options.verbose:
-            console.print(f"[yellow]Warning: Error scraping post comments: {e}[/yellow]")
+            console.print(
+                f"[yellow]Warning: Error scraping post comments: {e}[/yellow]"
+            )
 
     finally:
         # Navigate back to the group feed
@@ -492,22 +499,32 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 articles = page.query_selector_all('[data-pagelet^="FeedUnit"]')
 
                 if options.verbose and len(posts) == 0:
-                    console.print(f"Found {len(articles)} [data-pagelet^='FeedUnit'] elements")
+                    console.print(
+                        f"Found {len(articles)} [data-pagelet^='FeedUnit'] elements"
+                    )
 
                 if not articles:
                     # Fallback: look for elements with post-like structure
                     feed = page.query_selector('[role="feed"]')
                     if feed:
-                        all_divs = feed.query_selector_all('div')
-                        articles = [a for a in all_divs if len(a.inner_text() or "") > 100][:30]
+                        all_divs = feed.query_selector_all("div")
+                        articles = [
+                            a for a in all_divs if len(a.inner_text() or "") > 100
+                        ][:30]
                         if options.verbose and len(posts) == 0:
-                            console.print(f"Fallback: Found {len(articles)} divs with >100 chars")
+                            console.print(
+                                f"Fallback: Found {len(articles)} divs with >100 chars"
+                            )
 
                 new_posts_this_page = 0
 
                 for i, article in enumerate(articles):
                     if options.verbose and len(posts) == 0 and i < 2:
-                        inner = article.inner_text()[:200] if article.inner_text() else "(empty)"
+                        inner = (
+                            article.inner_text()[:200]
+                            if article.inner_text()
+                            else "(empty)"
+                        )
                         console.print(f"Article {i} preview: {repr(inner)}")
 
                     post = parse_modern_post(article, page)
@@ -530,7 +547,10 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
 
                     # Scrape comments if not skipped and post has comments
                     if not options.skip_comments and post.comments_count > 0:
-                        progress.update(task, description=f"Scraping comments for post {len(posts) + 1}...")
+                        progress.update(
+                            task,
+                            description=f"Scraping comments for post {len(posts) + 1}...",
+                        )
 
                         # Try to scrape comments from the article element first
                         post.comments = scrape_post_comments(page, article, options)
@@ -538,13 +558,17 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         # If no comments found and we have a post URL, try navigating to it
                         if not post.comments:
                             # Try to find permalink
-                            permalink = article.query_selector('a[href*="/posts/"], a[href*="?story_fbid"]')
+                            permalink = article.query_selector(
+                                'a[href*="/posts/"], a[href*="?story_fbid"]'
+                            )
                             if permalink:
                                 href = permalink.get_attribute("href")
                                 if href:
                                     if not href.startswith("http"):
                                         href = f"https://www.facebook.com{href}"
-                                    post.comments = scrape_comments_from_post_page(page, href, options)
+                                    post.comments = scrape_comments_from_post_page(
+                                        page, href, options
+                                    )
 
                         human_delay(page, options.delay * 0.5, options.delay * 0.2)
 
@@ -568,9 +592,14 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 page.evaluate("window.scrollBy(0, 1000)")
                 human_delay(page, options.delay, options.delay * 0.3)
 
-                new_article_count = len(page.query_selector_all('[data-pagelet^="FeedUnit"]'))
+                new_article_count = len(
+                    page.query_selector_all('[data-pagelet^="FeedUnit"]')
+                )
                 if options.verbose:
-                    progress.update(task, description=f"Scraped {len(posts)} posts (found {new_article_count} on page)...")
+                    progress.update(
+                        task,
+                        description=f"Scraped {len(posts)} posts (found {new_article_count} on page)...",
+                    )
 
         browser.close()
 

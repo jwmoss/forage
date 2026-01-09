@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
-from forage.cli import main, scrape
+from forage.cli import main
 
 
 class TestCli:
@@ -56,7 +55,9 @@ class TestCli:
         assert result.exit_code == 2
 
     @patch("forage.cli.session_exists")
-    def test_scrape_no_session(self, mock_session: MagicMock, runner: CliRunner) -> None:
+    def test_scrape_no_session(
+        self, mock_session: MagicMock, runner: CliRunner
+    ) -> None:
         """Test scrape without session prompts for login."""
         mock_session.return_value = False
         result = runner.invoke(main, ["scrape", "testgroup", "--no-input"])
@@ -65,8 +66,10 @@ class TestCli:
 
     def test_scrape_sqlite_requires_output(self, runner: CliRunner) -> None:
         """Test SQLite format requires output file."""
-        with patch("forage.cli.session_exists", return_value=True), \
-             patch("forage.cli.scrape_group") as mock_scrape:
+        with (
+            patch("forage.cli.session_exists", return_value=True),
+            patch("forage.cli.scrape_group") as mock_scrape,
+        ):
             mock_scrape.return_value = MagicMock(
                 model_dump_json=lambda indent: "{}",
                 group=MagicMock(id="1", name="Test"),
@@ -77,8 +80,10 @@ class TestCli:
 
     def test_scrape_csv_requires_output(self, runner: CliRunner) -> None:
         """Test CSV format requires output file."""
-        with patch("forage.cli.session_exists", return_value=True), \
-             patch("forage.cli.scrape_group") as mock_scrape:
+        with (
+            patch("forage.cli.session_exists", return_value=True),
+            patch("forage.cli.scrape_group") as mock_scrape,
+        ):
             mock_scrape.return_value = MagicMock(
                 model_dump_json=lambda indent: "{}",
                 group=MagicMock(id="1", name="Test"),
