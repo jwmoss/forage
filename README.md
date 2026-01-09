@@ -60,6 +60,9 @@ uv run forage scrape your-group-slug --no-headless -v
 
 # Slower scraping to avoid rate limits
 uv run forage scrape your-group-slug --delay 5.0
+
+# Read group from stdin (for scripting)
+echo "your-group-slug" | uv run forage scrape -
 ```
 
 ### CLI Reference
