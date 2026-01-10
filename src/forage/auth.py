@@ -76,10 +76,12 @@ def load_context(
 
 
 def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
-    """Check if the current page shows a logged-in state.
+    """
+    Check if the current page shows a logged-in state.
 
-    When used during scraping, callers can set `navigate=False` to avoid
-    leaving the current page.
+    Args:
+        page: The Playwright page to check
+        navigate: If True, navigate to facebook.com first. If False, check current page.
     """
     try:
         if navigate:
@@ -88,6 +90,7 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
             )
             page.wait_for_timeout(2000)
 
+        # Check for login page indicators first (more reliable)
         login_indicators = [
             'input[name="email"]',
             'input[name="pass"]',
@@ -98,16 +101,23 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
             if page.query_selector(selector):
                 return False
 
+        # Check for logged-in indicators
         logged_in_indicators = [
             '[aria-label="Your profile"]',
             '[aria-label="Account"]',
             '[data-pagelet="ProfileTilesFeed"]',
             'div[role="navigation"]',
+            '[role="feed"]',  # Group feed indicates logged in
+            '[data-pagelet^="FeedUnit"]',  # Post units indicate logged in
         ]
 
         for selector in logged_in_indicators:
             if page.query_selector(selector):
                 return True
+
+        # If we're on a group page and see content, we're logged in
+        if "facebook.com/groups" in page.url:
+            return True
 
         return True
 
