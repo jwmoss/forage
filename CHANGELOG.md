@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-01-10
+
+### Fixed
+
+- Fixed scraper timeout caused by login check navigating away from group page
+  - `is_logged_in_page()` was navigating to facebook.com to verify session, leaving the browser on the wrong page
+  - Added `navigate` parameter to check login status on the current page without navigating away
+  - Added group-specific login indicators for more reliable detection
+
 ## [1.0.0] - 2025-01-08
 
 ### Added
@@ -34,5 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/jwmoss/forage/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/jwmoss/forage/releases/tag/v1.0.0
