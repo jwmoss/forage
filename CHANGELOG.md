@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-01-10
+
+### Fixed
+
+- Updated Facebook HTML selectors for post detection
+  - Facebook changed their HTML structure, old `[data-pagelet^="FeedUnit"]` selector no longer works
+  - Now uses `[role="article"]` elements within the feed
+  - Filters out comments by checking for `aria-label` starting with "Comment by"
+  - Before: 2-3 posts found; After: 15+ posts found
+- Improved author extraction to avoid capturing post titles
+  - Strong tags containing post titles were incorrectly used as author names
+  - Now only uses strong tag if inside a profile link
+  - Validates profile links contain `/user/` path
+  - Before: "Hit and Run on Carolina Beach Rd." (post title)
+  - After: "April Dawn" (actual author)
+
 ## [1.0.3] - 2025-01-10
 
 ### Added
@@ -73,7 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/jwmoss/forage/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/jwmoss/forage/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/jwmoss/forage/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/jwmoss/forage/compare/v1.0.0...v1.0.1
