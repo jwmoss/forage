@@ -124,3 +124,47 @@ These areas break frequently due to Facebook changes:
 3. **Timestamp parsing** - Many edge cases
 
 When something breaks, check these first.
+
+## Release Process
+
+**IMPORTANT: Follow semantic versioning strictly. PyPI does not allow deletion of published versions.**
+
+### Semantic Versioning Rules
+
+| Change Type | Version Bump | Examples |
+|-------------|--------------|----------|
+| Bug fixes, patches | PATCH (1.0.x) | Fix timeout bug, fix parsing error |
+| Improvements, optimizations | PATCH (1.0.x) | Better error messages, improved parsing |
+| New features (backward compatible) | MINOR (1.x.0) | New CLI flag, new export format |
+| Breaking changes | MAJOR (x.0.0) | Changed CLI interface, removed feature |
+
+### Release Steps
+
+1. **Verify version number** - Double-check it follows semver based on changes
+2. **Update `pyproject.toml`** - Change `version = "X.Y.Z"`
+3. **Update `CHANGELOG.md`**:
+   - Add new version section under `## [Unreleased]`
+   - Use categories: `### Added`, `### Changed`, `### Fixed`, `### Removed`
+   - Update links at bottom of file
+4. **Commit**: `git commit -m "chore: release vX.Y.Z"`
+5. **Push**: `git push origin master`
+6. **Create tag**: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+7. **Push tag**: `git push origin vX.Y.Z`
+8. **Create GitHub release**: This triggers the PyPI publish workflow
+
+```bash
+# Example release commands
+git add pyproject.toml CHANGELOG.md
+git commit -m "chore: release v1.0.3"
+git push origin master
+git tag -a v1.0.3 -m "Release v1.0.3"
+git push origin v1.0.3
+gh release create v1.0.3 --title "v1.0.3" --notes "Release notes here"
+```
+
+### PyPI Notes
+
+- The publish workflow runs on GitHub release publish (see `.github/workflows/publish.yml`)
+- Uses OIDC trusted publishing (no API tokens needed)
+- **Cannot delete published versions** - only "yank" via PyPI web interface
+- Test with `workflow_dispatch` + `test_pypi: true` for Test PyPI first if unsure

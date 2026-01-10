@@ -102,3 +102,38 @@ Sessions are stored in `~/.config/forage/session/storage_state.json`. This inclu
 - Session storage
 
 Sessions typically expire after ~30 days or if Facebook detects unusual activity.
+
+## Release Process
+
+**CRITICAL: Follow semantic versioning. PyPI cannot delete published versions.**
+
+### Version Numbering (Semver)
+
+- **PATCH (1.0.x)**: Bug fixes, improvements, optimizations
+- **MINOR (1.x.0)**: New backward-compatible features
+- **MAJOR (x.0.0)**: Breaking changes
+
+### Release Checklist
+
+1. Determine correct version bump (PATCH/MINOR/MAJOR)
+2. Update `version` in `pyproject.toml`
+3. Update `CHANGELOG.md` with new version section
+4. Commit: `chore: release vX.Y.Z`
+5. Push to master
+6. Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+7. Push tag: `git push origin vX.Y.Z`
+8. Create GitHub release (triggers PyPI publish)
+
+### Workflow
+
+The `.github/workflows/publish.yml` workflow:
+- Triggers on GitHub release publish
+- Uses OIDC trusted publishing (no tokens)
+- Publishes to PyPI automatically
+
+### Recovery
+
+If wrong version published to PyPI:
+- Cannot delete, only "yank" via https://pypi.org/manage/project/ForageFacebook/releases/
+- Create corrected version and release it
+- Document the mistake in changelog
