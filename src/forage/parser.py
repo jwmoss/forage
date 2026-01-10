@@ -235,38 +235,61 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
         author_name = "Unknown"
         profile_url = None
 
-        # Try to find author from strong tag or heading-like elements first
+        # Try to find author from strong tag ONLY if it's inside a profile link
+        # (strong tags can also be post titles/bold content, not just author names)
         strong_elem = article.query_selector("strong")
         if strong_elem:
-            author_name = strong_elem.inner_text().strip()
             parent_link = strong_elem.query_selector("xpath=ancestor::a")
             if parent_link:
-                profile_url = parent_link.get_attribute("href")
+                href = parent_link.get_attribute("href") or ""
+                # Only use strong if parent link is a user profile (not a group link)
+                if "/user/" in href or (
+                    "facebook.com/" in href
+                    and "/groups/" not in href
+                    and "/posts/" not in href
+                ):
+                    strong_text = strong_elem.inner_text().strip()
+                    # Validate: author names are typically short (< 50 chars)
+                    # and don't contain newlines
+                    if len(strong_text) < 50 and "\n" not in strong_text:
+                        author_name = strong_text
+                        profile_url = href
 
-        # Fallback: look for profile links
+        # Primary method: look for profile links with user names
         if author_name == "Unknown":
             author_links = article.query_selector_all('a[role="link"]')
             for link in author_links:
                 href = link.get_attribute("href") or ""
                 link_text = link.inner_text().strip()
                 # Author links typically have short text (names) and point to profiles
+                # Must contain /user/ or be a direct facebook.com profile link
                 if (
                     len(link_text) > 2
                     and len(link_text) < 50
+                    and "\n" not in link_text
                     and (
-                        "facebook.com/" in href
-                        and "/groups/" not in href
-                        and "?" not in href.split("/")[-1]
+                        "/user/" in href
+                        or (
+                            "facebook.com/" in href
+                            and "/groups/" not in href
+                            and "/posts/" not in href
+                            and "?" not in href.split("/")[-1]
+                        )
                     )
                 ):
                     author_name = link_text
                     profile_url = href
                     break
 
-        # If still no author, use first line if it looks like a name
+        # Fallback: use first line if it looks like a name
         if author_name == "Unknown" and lines:
             first_line = lines[0]
-            if len(first_line) < 50 and not any(c.isdigit() for c in first_line[:5]):
+            # Names are short, don't start with digits, and don't contain certain keywords
+            if (
+                len(first_line) < 50
+                and not any(c.isdigit() for c in first_line[:5])
+                and "\n" not in first_line
+            ):
                 author_name = first_line
 
         # Clean up author name - remove "is with X", "shared a post", etc.
