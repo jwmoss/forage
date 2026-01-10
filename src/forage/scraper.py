@@ -465,7 +465,7 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
             console.print(f"Current URL: {page.url}")
             console.print(f"Page title: {page.title()}")
 
-        if not is_logged_in_page(page):
+        if not is_logged_in_page(page, navigate=False):
             browser.close()
             raise AuthenticationError("Not logged in or session expired")
 
