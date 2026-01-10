@@ -495,26 +495,30 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 if options.limit and len(posts) >= options.limit:
                     break
 
-                # Facebook posts are deeply nested. Try multiple selectors.
-                articles = page.query_selector_all('[data-pagelet^="FeedUnit"]')
+                # Facebook posts are [role="article"] elements within the feed.
+                # Posts have aria-describedby attribute, comments have aria-label
+                # starting with "Comment by".
+                feed = page.query_selector('[role="feed"]')
+                if not feed:
+                    if options.verbose:
+                        console.print("[yellow]No feed found on page[/yellow]")
+                    break
+
+                all_articles = feed.query_selector_all('[role="article"]')
+                articles = []
+                for article in all_articles:
+                    aria_label = article.get_attribute("aria-label") or ""
+                    aria_describedby = article.get_attribute("aria-describedby")
+                    # Posts have aria-describedby but NOT aria-label starting with
+                    # "Comment by"
+                    if aria_describedby and not aria_label.startswith("Comment by"):
+                        articles.append(article)
 
                 if options.verbose and len(posts) == 0:
                     console.print(
-                        f"Found {len(articles)} [data-pagelet^='FeedUnit'] elements"
+                        f"Found {len(all_articles)} [role='article'] elements, "
+                        f"{len(articles)} are posts"
                     )
-
-                if not articles:
-                    # Fallback: look for elements with post-like structure
-                    feed = page.query_selector('[role="feed"]')
-                    if feed:
-                        all_divs = feed.query_selector_all("div")
-                        articles = [
-                            a for a in all_divs if len(a.inner_text() or "") > 100
-                        ][:30]
-                        if options.verbose and len(posts) == 0:
-                            console.print(
-                                f"Fallback: Found {len(articles)} divs with >100 chars"
-                            )
 
                 new_posts_this_page = 0
 
@@ -592,13 +596,10 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 page.evaluate("window.scrollBy(0, 1000)")
                 human_delay(page, options.delay, options.delay * 0.3)
 
-                new_article_count = len(
-                    page.query_selector_all('[data-pagelet^="FeedUnit"]')
-                )
                 if options.verbose:
                     progress.update(
                         task,
-                        description=f"Scraped {len(posts)} posts (found {new_article_count} on page)...",
+                        description=f"Scraped {len(posts)} posts, scrolling for more...",
                     )
 
         browser.close()
