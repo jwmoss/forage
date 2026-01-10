@@ -59,7 +59,7 @@ PAIN_PATTERNS: dict[str, list[str]] = {
 }
 
 
-def _detect_pain_signals(content: str) -> dict[str, Any]:
+def _detect_pain_signals(content: str | None) -> dict[str, Any]:
     """Detect pain point signals in post content."""
     if not content:
         return {"is_question": False, "pain_keywords": [], "pain_score": 0}
