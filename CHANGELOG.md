@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-01-10
+
+### Improved
+
+- Enhanced timestamp parsing with support for more formats
+  - "2 months ago", "3 years ago" relative timestamps
+  - "Yesterday at 3:00 PM" format
+  - Yearless dates like "January 15" or "Jan 15"
+- Improved reaction count parsing
+  - Compact notation support ("1.2K", "2M")
+  - Individual reaction breakdown ("42 likes and 10 loves")
+- Deterministic fallback IDs using SHA256 instead of Python's non-deterministic `hash()`
+- Better viewport handling with explicit width/height values
+
+### Changed
+
+- Use `create_browser_context()` helper for consistent browser context setup
+
 ## [1.0.1] - 2025-01-10
 
 ### Fixed
@@ -43,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jwmoss/forage/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/jwmoss/forage/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/jwmoss/forage/releases/tag/v1.0.0
