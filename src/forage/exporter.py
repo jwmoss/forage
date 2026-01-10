@@ -3,10 +3,242 @@
 from __future__ import annotations
 
 import csv
+import json
+import re
 import sqlite3
 from pathlib import Path
+from typing import Any
 
-from forage.models import ScrapeResult
+from forage.models import Post, ScrapeResult
+
+# Pain point keyword patterns for signal detection
+PAIN_PATTERNS: dict[str, list[str]] = {
+    "seeking": [
+        "looking for",
+        "does anyone know",
+        "recommendations for",
+        "where can i find",
+        "anyone have experience",
+        "can anyone recommend",
+        "who do you use",
+        "know of any",
+    ],
+    "wishing": [
+        "wish there was",
+        "would be nice",
+        "someone should build",
+        "why isn't there",
+        "if only",
+        "would love to see",
+    ],
+    "frustration": [
+        "frustrated with",
+        "tired of",
+        "hate when",
+        "annoying that",
+        "sick of",
+        "can't stand",
+        "fed up",
+        "so hard to find",
+    ],
+    "alternatives": [
+        "alternative to",
+        "something like",
+        "better than",
+        "instead of",
+        "similar to",
+    ],
+    "needs": [
+        "i need",
+        "we need",
+        "trying to find",
+        "help me find",
+        "in search of",
+        "desperately need",
+    ],
+}
+
+
+def _detect_pain_signals(content: str) -> dict[str, Any]:
+    """Detect pain point signals in post content."""
+    if not content:
+        return {"is_question": False, "pain_keywords": [], "pain_score": 0}
+
+    content_lower = content.lower()
+
+    # Detect if it's a question
+    is_question = "?" in content or any(
+        content_lower.strip().startswith(word)
+        for word in ["who", "what", "where", "when", "why", "how", "does", "has", "can", "is", "are", "should", "would", "could", "any"]
+    )
+
+    # Find matching pain keywords
+    pain_keywords: list[str] = []
+    for category, patterns in PAIN_PATTERNS.items():
+        for pattern in patterns:
+            if pattern in content_lower:
+                pain_keywords.append(pattern)
+
+    # Calculate pain score
+    pain_score = len(pain_keywords)
+    if is_question:
+        pain_score += 1
+
+    return {
+        "is_question": is_question,
+        "pain_keywords": pain_keywords,
+        "pain_score": pain_score,
+    }
+
+
+def _post_to_llm_format(post: Post, top_comments: int = 3) -> dict[str, Any]:
+    """Convert a post to LLM-friendly format."""
+    # Get top comments by reaction count
+    sorted_comments = sorted(
+        post.comments,
+        key=lambda c: c.reactions.total if c.reactions else 0,
+        reverse=True,
+    )[:top_comments]
+
+    top_comments_data = [
+        {
+            "content": c.content,
+            "reactions": c.reactions.total if c.reactions else 0,
+        }
+        for c in sorted_comments
+        if c.content
+    ]
+
+    signals = _detect_pain_signals(post.content)
+
+    return {
+        "id": post.id,
+        "content": post.content,
+        "engagement": {
+            "reactions": post.reactions.total if post.reactions else 0,
+            "comments": post.comments_count,
+        },
+        "signals": signals,
+        "timestamp": post.timestamp.isoformat() if post.timestamp else None,
+        "top_comments": top_comments_data,
+    }
+
+
+def export_to_llm(
+    result: ScrapeResult,
+    output_path: Path,
+    top_comments: int = 3,
+    min_pain_score: int = 0,
+) -> None:
+    """Export scrape result to LLM-friendly JSON format.
+
+    This format is optimized for feeding to LLM APIs for analysis:
+    - Strips unnecessary metadata (author URLs, reaction breakdowns)
+    - Adds computed signals (is_question, pain_keywords, pain_score)
+    - Includes only top N comments per post
+    - Provides summary statistics
+
+    Args:
+        result: The scrape result to export
+        output_path: Path to write the JSON file
+        top_comments: Number of top comments to include per post (default: 3)
+        min_pain_score: Minimum pain score to include a post (default: 0)
+    """
+    posts_data = []
+    total_reactions = 0
+    total_comments = 0
+    question_count = 0
+    pain_post_count = 0
+
+    for post in result.posts:
+        post_data = _post_to_llm_format(post, top_comments)
+
+        # Apply pain score filter
+        if post_data["signals"]["pain_score"] < min_pain_score:
+            continue
+
+        posts_data.append(post_data)
+
+        # Accumulate stats
+        total_reactions += post_data["engagement"]["reactions"]
+        total_comments += post_data["engagement"]["comments"]
+        if post_data["signals"]["is_question"]:
+            question_count += 1
+        if post_data["signals"]["pain_score"] > 0:
+            pain_post_count += 1
+
+    output = {
+        "metadata": {
+            "group_name": result.group.name,
+            "group_url": result.group.url,
+            "scraped_at": result.scraped_at.isoformat() if result.scraped_at else None,
+            "date_range": {
+                "since": result.date_range.since,
+                "until": result.date_range.until,
+            },
+            "stats": {
+                "post_count": len(posts_data),
+                "total_reactions": total_reactions,
+                "total_comments": total_comments,
+                "questions": question_count,
+                "posts_with_pain_signals": pain_post_count,
+            },
+        },
+        "posts": posts_data,
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+
+def get_llm_json(
+    result: ScrapeResult,
+    top_comments: int = 3,
+    min_pain_score: int = 0,
+) -> str:
+    """Get LLM-friendly JSON as a string (for stdout output)."""
+    posts_data = []
+    total_reactions = 0
+    total_comments = 0
+    question_count = 0
+    pain_post_count = 0
+
+    for post in result.posts:
+        post_data = _post_to_llm_format(post, top_comments)
+
+        if post_data["signals"]["pain_score"] < min_pain_score:
+            continue
+
+        posts_data.append(post_data)
+
+        total_reactions += post_data["engagement"]["reactions"]
+        total_comments += post_data["engagement"]["comments"]
+        if post_data["signals"]["is_question"]:
+            question_count += 1
+        if post_data["signals"]["pain_score"] > 0:
+            pain_post_count += 1
+
+    output = {
+        "metadata": {
+            "group_name": result.group.name,
+            "group_url": result.group.url,
+            "scraped_at": result.scraped_at.isoformat() if result.scraped_at else None,
+            "date_range": {
+                "since": result.date_range.since,
+                "until": result.date_range.until,
+            },
+            "stats": {
+                "post_count": len(posts_data),
+                "total_reactions": total_reactions,
+                "total_comments": total_comments,
+                "questions": question_count,
+                "posts_with_pain_signals": pain_post_count,
+            },
+        },
+        "posts": posts_data,
+    }
+
+    return json.dumps(output, indent=2, ensure_ascii=False)
 
 
 def export_to_csv(result: ScrapeResult, output_path: Path) -> None:
