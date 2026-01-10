@@ -128,12 +128,12 @@ def navigate_with_retry(
 
 
 # Realistic viewport sizes to rotate through
-VIEWPORT_SIZES = [
-    {"width": 1920, "height": 1080},
-    {"width": 1536, "height": 864},
-    {"width": 1440, "height": 900},
-    {"width": 1366, "height": 768},
-    {"width": 1280, "height": 720},
+VIEWPORT_SIZES: list[tuple[int, int]] = [
+    (1920, 1080),
+    (1536, 864),
+    (1440, 900),
+    (1366, 768),
+    (1280, 720),
 ]
 
 
@@ -432,18 +432,18 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
 
     with sync_playwright() as p:
         # Launch with random viewport for anti-detection
-        viewport = random.choice(VIEWPORT_SIZES)
+        viewport_width, viewport_height = random.choice(VIEWPORT_SIZES)
         browser = getattr(p, options.browser_type).launch(
             headless=options.headless,
         )
-        context = load_context(browser, options.session_dir)
+        context = create_browser_context(browser, options.session_dir)
         page = context.new_page()
-        page.set_viewport_size(viewport)
+        page.set_viewport_size({"width": viewport_width, "height": viewport_height})
 
         group_url = get_group_url(group_id)
         if options.verbose:
             console.print(f"Navigating to: {group_url}")
-            console.print(f"Viewport: {viewport['width']}x{viewport['height']}")
+            console.print(f"Viewport: {viewport_width}x{viewport_height}")
 
         navigate_with_retry(page, group_url, max_retries=3, verbose=options.verbose)
 

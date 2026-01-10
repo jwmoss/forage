@@ -39,7 +39,7 @@ jobs:
 
     environment:
       name: test-pypi
-      url: https://test.pypi.org/project/forage/
+      url: https://test.pypi.org/project/ForageFacebook/
 
     permissions:
       id-token: write
@@ -63,7 +63,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/forage/
+      url: https://pypi.org/project/ForageFacebook/
 
     permissions:
       id-token: write
