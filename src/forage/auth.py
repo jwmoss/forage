@@ -75,25 +75,22 @@ def load_context(
         return browser.new_context()
 
 
-def is_logged_in_page(page: Page) -> bool:
-    """Check if the current page shows a logged-in state."""
+def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
+    """
+    Check if the current page shows a logged-in state.
+
+    Args:
+        page: The Playwright page to check
+        navigate: If True, navigate to facebook.com first. If False, check current page.
+    """
     try:
-        page.goto(
-            "https://www.facebook.com", timeout=10000, wait_until="domcontentloaded"
-        )
-        page.wait_for_timeout(2000)
+        if navigate:
+            page.goto(
+                "https://www.facebook.com", timeout=10000, wait_until="domcontentloaded"
+            )
+            page.wait_for_timeout(2000)
 
-        logged_in_indicators = [
-            '[aria-label="Your profile"]',
-            '[aria-label="Account"]',
-            '[data-pagelet="ProfileTilesFeed"]',
-            'div[role="navigation"]',
-        ]
-
-        for selector in logged_in_indicators:
-            if page.query_selector(selector):
-                return True
-
+        # Check for login page indicators first (more reliable)
         login_indicators = [
             'input[name="email"]',
             'input[name="pass"]',
@@ -103,6 +100,24 @@ def is_logged_in_page(page: Page) -> bool:
         for selector in login_indicators:
             if page.query_selector(selector):
                 return False
+
+        # Check for logged-in indicators
+        logged_in_indicators = [
+            '[aria-label="Your profile"]',
+            '[aria-label="Account"]',
+            '[data-pagelet="ProfileTilesFeed"]',
+            'div[role="navigation"]',
+            '[role="feed"]',  # Group feed indicates logged in
+            '[data-pagelet^="FeedUnit"]',  # Post units indicate logged in
+        ]
+
+        for selector in logged_in_indicators:
+            if page.query_selector(selector):
+                return True
+
+        # If we're on a group page and see content, we're logged in
+        if "facebook.com/groups" in page.url:
+            return True
 
         return True
 
