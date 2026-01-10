@@ -146,9 +146,9 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
     "-f",
     "--format",
     "output_format",
-    type=click.Choice(["json", "sqlite", "csv"]),
+    type=click.Choice(["json", "sqlite", "csv", "llm"]),
     default="json",
-    help="Output format (default: json)",
+    help="Output format: json (full), llm (optimized for LLM APIs), sqlite, csv",
 )
 @click.option(
     "--session-dir",
@@ -295,6 +295,17 @@ def scrape(
             comments_path = output.with_suffix(".comments.csv")
             console.print(f"[green]Posts exported to {output}[/green]")
             console.print(f"[green]Comments exported to {comments_path}[/green]")
+    elif output_format == "llm":
+        from forage.exporter import export_to_llm, get_llm_json
+
+        if output:
+            export_to_llm(result, output, top_comments=3)
+            if not ctx.quiet:
+                console.print(
+                    f"[green]LLM-optimized output written to {output}[/green]"
+                )
+        else:
+            click.echo(get_llm_json(result, top_comments=3))
     else:
         json_output = result.model_dump_json(indent=2)
         if output:
