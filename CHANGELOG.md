@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2025-01-10
+
+### Added
+
+- New LLM-optimized output format (`-f llm`) for feeding data to LLM APIs
+  - Streamlined JSON with engagement metrics and computed signals
+  - Pain point detection with keyword matching (seeking, frustration, wishing, etc.)
+  - Question detection for posts
+  - Pain score computation for prioritizing high-signal content
+  - Top 3 comments per post (sorted by reactions)
+  - Summary statistics in metadata
+
 ## [1.0.2] - 2025-01-10
 
 ### Improved
@@ -61,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/jwmoss/forage/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/jwmoss/forage/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/jwmoss/forage/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/jwmoss/forage/releases/tag/v1.0.0

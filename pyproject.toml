@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ForageFacebook"
-version = "1.0.2"
+version = "1.0.3"
 description = "CLI tool to scrape posts, comments, and reactions from private Facebook groups"
 readme = "README.md"
 requires-python = ">=3.10"
