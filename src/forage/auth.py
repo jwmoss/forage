@@ -108,7 +108,7 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
             '[data-pagelet="ProfileTilesFeed"]',
             'div[role="navigation"]',
             '[role="feed"]',  # Group feed indicates logged in
-            '[data-pagelet^="FeedUnit"]',  # Post units indicate logged in
+            '[role="feed"] [role="article"]',  # Post articles in feed indicate logged in
         ]
 
         for selector in logged_in_indicators:
