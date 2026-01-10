@@ -301,7 +301,9 @@ def scrape(
         if output:
             export_to_llm(result, output, top_comments=3)
             if not ctx.quiet:
-                console.print(f"[green]LLM-optimized output written to {output}[/green]")
+                console.print(
+                    f"[green]LLM-optimized output written to {output}[/green]"
+                )
         else:
             click.echo(get_llm_json(result, top_comments=3))
     else:

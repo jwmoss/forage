@@ -494,7 +494,12 @@ class TestPostToLlmFormat:
             reactions=Reactions(total=10),
             comments_count=5,
             comments=[
-                Comment(id=f"c{i}", author=Author(name=f"User{i}"), content=f"Comment {i}", reactions=Reactions(total=i))
+                Comment(
+                    id=f"c{i}",
+                    author=Author(name=f"User{i}"),
+                    content=f"Comment {i}",
+                    reactions=Reactions(total=i),
+                )
                 for i in range(5)
             ],
         )
@@ -551,7 +556,9 @@ class TestExportToLlm:
         assert "metadata" in data
         assert "posts" in data
 
-    def test_metadata_structure(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_metadata_structure(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that metadata has correct structure."""
         output_path = tmp_path / "output.json"
         export_to_llm(sample_result, output_path)
@@ -581,7 +588,9 @@ class TestExportToLlm:
         assert "questions" in stats
         assert "posts_with_pain_signals" in stats
 
-    def test_posts_have_signals(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_posts_have_signals(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that posts have signal data."""
         output_path = tmp_path / "output.json"
         export_to_llm(sample_result, output_path)
@@ -645,7 +654,9 @@ class TestGetLlmJson:
         assert "metadata" in data
         assert "posts" in data
 
-    def test_matches_export_to_llm(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
+    def test_matches_export_to_llm(
+        self, tmp_path: Path, sample_result: ScrapeResult
+    ) -> None:
         """Test that get_llm_json matches export_to_llm output."""
         output_path = tmp_path / "output.json"
         export_to_llm(sample_result, output_path)

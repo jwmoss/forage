@@ -68,7 +68,23 @@ def _detect_pain_signals(content: str | None) -> dict[str, Any]:
     # Detect if it's a question
     is_question = "?" in content or any(
         content_lower.strip().startswith(word)
-        for word in ["who", "what", "where", "when", "why", "how", "does", "has", "can", "is", "are", "should", "would", "could", "any"]
+        for word in [
+            "who",
+            "what",
+            "where",
+            "when",
+            "why",
+            "how",
+            "does",
+            "has",
+            "can",
+            "is",
+            "are",
+            "should",
+            "would",
+            "could",
+            "any",
+        ]
     )
 
     # Find matching pain keywords
