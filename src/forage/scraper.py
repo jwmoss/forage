@@ -273,7 +273,10 @@ def scrape_post_comments(
                 # Try to find elements that look like comments
                 potential_comments = article.query_selector_all('div[dir="auto"]')
                 for elem in potential_comments:
-                    comment = parse_modern_comment(elem)
+                    comment = parse_modern_comment(
+                        elem,
+                        skip_reactions=options.skip_reactions,
+                    )
                     if (
                         comment
                         and comment.content
@@ -283,7 +286,7 @@ def scrape_post_comments(
                         seen_comment_ids.add(comment.id)
 
         for elem in comment_elements:
-            comment = parse_modern_comment(elem)
+            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
                 seen_comment_ids.add(comment.id)
@@ -308,7 +311,7 @@ def scrape_post_comments(
         # After expanding, try to get more comments
         expanded_comments = article.query_selector_all('div[role="article"]')
         for elem in expanded_comments:
-            comment = parse_modern_comment(elem)
+            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
                 seen_comment_ids.add(comment.id)
@@ -373,7 +376,7 @@ def scrape_comments_from_post_page(
         comment_elements = page.query_selector_all('[role="article"]')
 
         for elem in comment_elements:
-            comment = parse_modern_comment(elem)
+            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
                 seen_comment_ids.add(comment.id)
@@ -383,7 +386,7 @@ def scrape_comments_from_post_page(
             'div[role="article"] div[role="article"]'
         )
         for elem in reply_elements:
-            reply = parse_modern_comment(elem)
+            reply = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if reply and reply.content:
                 # Find parent comment and add as reply
                 for comment in comments:
@@ -535,7 +538,11 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         )
                         console.print(f"Article {i} preview: {repr(inner)}")
 
-                    post = parse_modern_post(article, page)
+                    post = parse_modern_post(
+                        article,
+                        page,
+                        skip_reactions=options.skip_reactions,
+                    )
                     if not post:
                         if options.verbose and len(posts) == 0 and i < 2:
                             console.print(f"Article {i}: parse returned None")
