@@ -257,6 +257,7 @@ def scrape_post_comments(
         return []
 
     comments: list[Comment] = []
+    seen_comment_ids: set[str] = set()
 
     try:
         # Find all comment containers
@@ -273,15 +274,22 @@ def scrape_post_comments(
                 potential_comments = article.query_selector_all('div[dir="auto"]')
                 for elem in potential_comments:
                     comment = parse_modern_comment(
-                        elem, skip_reactions=options.skip_reactions
+                        elem,
+                        skip_reactions=options.skip_reactions,
                     )
-                    if comment and comment.content:
+                    if (
+                        comment
+                        and comment.content
+                        and comment.id not in seen_comment_ids
+                    ):
                         comments.append(comment)
+                        seen_comment_ids.add(comment.id)
 
         for elem in comment_elements:
             comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
-            if comment and comment.content:
+            if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
+                seen_comment_ids.add(comment.id)
 
         # Try clicking "View more comments" links
         view_more_selectors = [
@@ -304,12 +312,9 @@ def scrape_post_comments(
         expanded_comments = article.query_selector_all('div[role="article"]')
         for elem in expanded_comments:
             comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
-            if (
-                comment
-                and comment.content
-                and comment.id not in [c.id for c in comments]
-            ):
+            if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
+                seen_comment_ids.add(comment.id)
 
     except Exception as e:
         if options.verbose:
@@ -339,6 +344,7 @@ def scrape_comments_from_post_page(
         return []
 
     comments: list[Comment] = []
+    seen_comment_ids: set[str] = set()
     original_url = page.url
 
     try:
@@ -371,10 +377,9 @@ def scrape_comments_from_post_page(
 
         for elem in comment_elements:
             comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
-            if comment and comment.content:
-                # Avoid duplicates
-                if comment.id not in [c.id for c in comments]:
-                    comments.append(comment)
+            if comment and comment.content and comment.id not in seen_comment_ids:
+                comments.append(comment)
+                seen_comment_ids.add(comment.id)
 
         # Also try to get nested replies
         reply_elements = page.query_selector_all(

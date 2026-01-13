@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
-
+from forage.models import Author, Comment
 from forage.scraper import (
     ScrapeOptions,
     calculate_date_range,
     normalize_group_identifier,
     random_delay,
+    scrape_comments_from_post_page,
+    scrape_post_comments,
 )
 
 
@@ -219,3 +222,66 @@ class TestRandomDelayEdgeCases:
         """Test when variance equals base."""
         delay = random_delay(1.0, 1.0)
         assert 0 <= delay <= 2.0
+
+
+class TestCommentDedupe:
+    """Unit tests for comment de-duplication."""
+
+    def test_scrape_post_comments_dedupes_by_id(self) -> None:
+        page = MagicMock(spec=["wait_for_timeout"])
+        article = MagicMock(spec=["query_selector", "query_selector_all", "inner_text"])
+        article.query_selector.return_value = None
+
+        elem1 = MagicMock()
+        elem2 = MagicMock()
+
+        def query_selector_all(selector: str):
+            if selector == 'div[role="article"]':
+                return [elem1, elem2]
+            return []
+
+        article.query_selector_all.side_effect = query_selector_all
+
+        options = ScrapeOptions(delay=0)
+        comment = Comment(id="c1", author=Author(name="A"), content="hello")
+
+        with patch("forage.scraper.parse_modern_comment", return_value=comment):
+            comments = scrape_post_comments(page, article, options)
+
+        assert [c.id for c in comments] == ["c1"]
+
+    def test_scrape_comments_from_post_page_dedupes_by_id(self) -> None:
+        page = MagicMock(
+            spec=[
+                "goto",
+                "query_selector",
+                "query_selector_all",
+                "wait_for_selector",
+                "wait_for_timeout",
+            ]
+        )
+        page.url = "https://example.com/original"
+        page.query_selector.return_value = None
+
+        elem1 = MagicMock()
+        elem2 = MagicMock()
+
+        def query_selector_all(selector: str):
+            if selector == '[role="article"]':
+                return [elem1, elem2]
+            return []
+
+        page.query_selector_all.side_effect = query_selector_all
+
+        options = ScrapeOptions(delay=0)
+        comment = Comment(id="c1", author=Author(name="A"), content="hello")
+
+        with (
+            patch("forage.scraper.navigate_with_retry"),
+            patch("forage.scraper.parse_modern_comment", return_value=comment),
+        ):
+            comments = scrape_comments_from_post_page(
+                page, "https://example.com/post", options
+            )
+
+        assert [c.id for c in comments] == ["c1"]
