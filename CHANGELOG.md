@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-01-13
+
+### Fixed
+
+- Honor `--skip-reactions` flag
+  - Skips reaction parsing for posts and comments when enabled
+
+### Improved
+
+- Faster comment de-duplication during scraping (avoids repeated O(n) scans)
+- Reduced Playwright DOM roundtrips by reusing `inner_text()` results
+
 ## [1.0.4] - 2026-01-10
 
 ### Fixed
@@ -89,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/jwmoss/forage/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/jwmoss/forage/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/jwmoss/forage/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/jwmoss/forage/compare/v1.0.1...v1.0.2

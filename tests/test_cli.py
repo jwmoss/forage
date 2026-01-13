@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+from forage import __version__
 from forage.cli import main
 
 
@@ -28,7 +29,7 @@ class TestCli:
         """Test --version shows version."""
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "1.0.0" in result.output
+        assert __version__ in result.output
 
     def test_scrape_help(self, runner: CliRunner) -> None:
         """Test scrape --help shows options."""
