@@ -224,7 +224,12 @@ def parse_reactions_text(text: str) -> Reactions:
     return Reactions(total=total)
 
 
-def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
+def parse_modern_post(
+    article: ElementHandle,
+    page: Page,
+    *,
+    skip_reactions: bool = False,
+) -> Optional[Post]:
     """Parse a post from www.facebook.com (modern React UI)."""
     try:
         # Get all text content from the article
@@ -409,30 +414,34 @@ def parse_modern_post(article: ElementHandle, page: Page) -> Optional[Post]:
         # Reactions: look for reaction counts in various places
         reactions = Reactions()
 
-        # Try aria-labels first
-        reaction_elements = article.query_selector_all(
-            '[aria-label*="reaction"], [aria-label*="like"]'
-        )
-        for elem in reaction_elements:
-            aria = elem.get_attribute("aria-label") or ""
-            if "reaction" in aria.lower() or "like" in aria.lower():
-                reactions = parse_reactions_text(aria)
-                if reactions.total > 0:
-                    break
+        if not skip_reactions:
+            # Try aria-labels first
+            reaction_elements = article.query_selector_all(
+                '[aria-label*="reaction"], [aria-label*="like"]'
+            )
+            for elem in reaction_elements:
+                aria = elem.get_attribute("aria-label") or ""
+                if "reaction" in aria.lower() or "like" in aria.lower():
+                    reactions = parse_reactions_text(aria)
+                    if reactions.total > 0:
+                        break
 
-        # Try finding reaction count in text like "All reactions:\n44"
-        if reactions.total == 0:
-            all_text = article.inner_text()
-            # Look for "All reactions:" followed by a number
-            match = re.search(r"All reactions:?\s*\n?(\d+)", all_text)
-            if match:
-                reactions = Reactions(total=int(match.group(1)))
-
-            # Also try just standalone numbers near "reactions" or after names
+            # Try finding reaction count in text like "All reactions:\n44"
             if reactions.total == 0:
-                match = re.search(r"\n(\d+)\n.*(?:and \d+ others|others)", all_text)
+                all_text = article.inner_text()
+                # Look for "All reactions:" followed by a number
+                match = re.search(r"All reactions:?\s*\n?(\d+)", all_text)
                 if match:
                     reactions = Reactions(total=int(match.group(1)))
+
+                # Also try just standalone numbers near "reactions" or after names
+                if reactions.total == 0:
+                    match = re.search(
+                        r"\n(\d+)\n.*(?:and \d+ others|others)",
+                        all_text,
+                    )
+                    if match:
+                        reactions = Reactions(total=int(match.group(1)))
 
         # Comments count
         comments_count = 0
@@ -599,7 +608,11 @@ def parse_mbasic_comment(comment_div: ElementHandle) -> Optional[Comment]:
         return None
 
 
-def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
+def parse_modern_comment(
+    element: ElementHandle,
+    *,
+    skip_reactions: bool = False,
+) -> Optional[Comment]:
     """Parse a comment from www.facebook.com (modern React UI)."""
     try:
         all_text = element.inner_text()
@@ -690,20 +703,22 @@ def parse_modern_comment(element: ElementHandle) -> Optional[Comment]:
 
         # Try to get reaction count
         reactions = Reactions()
-        reaction_elems = element.query_selector_all(
-            '[aria-label*="reaction"], [aria-label*="like"]'
-        )
-        for elem in reaction_elems:
-            aria = elem.get_attribute("aria-label") or ""
-            if "reaction" in aria.lower():
-                reactions = parse_reactions_text(aria)
-                break
 
-        # Also try text-based reaction count
-        if reactions.total == 0:
-            match = re.search(r"\n(\d+)\n", all_text)
-            if match:
-                reactions = Reactions(total=int(match.group(1)))
+        if not skip_reactions:
+            reaction_elems = element.query_selector_all(
+                '[aria-label*="reaction"], [aria-label*="like"]'
+            )
+            for elem in reaction_elems:
+                aria = elem.get_attribute("aria-label") or ""
+                if "reaction" in aria.lower():
+                    reactions = parse_reactions_text(aria)
+                    break
+
+            # Also try text-based reaction count
+            if reactions.total == 0:
+                match = re.search(r"\n(\d+)\n", all_text)
+                if match:
+                    reactions = Reactions(total=int(match.group(1)))
 
         return Comment(
             id=comment_id,
