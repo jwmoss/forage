@@ -10,6 +10,8 @@ from forage.models import Comment, Reactions
 from forage.parser import (
     extract_post_id,
     filter_comments,
+    parse_modern_comment,
+    parse_modern_post,
     parse_reactions_text,
     parse_timestamp,
 )
@@ -255,3 +257,35 @@ class TestFilterComments:
         """Test filtering empty list."""
         result = filter_comments([])
         assert result == []
+
+
+class TestSkipReactions:
+    """Tests for skip_reactions behavior in modern parsers."""
+
+    def test_parse_modern_post_parses_reactions_by_default(
+        self, simple_post_element, mock_page
+    ) -> None:
+        post = parse_modern_post(simple_post_element, mock_page)
+        assert post is not None
+        assert post.reactions.total == 42
+
+    def test_parse_modern_post_skips_reactions_when_requested(
+        self, simple_post_element, mock_page
+    ) -> None:
+        post = parse_modern_post(simple_post_element, mock_page, skip_reactions=True)
+        assert post is not None
+        assert post.reactions.total == 0
+
+    def test_parse_modern_comment_parses_reactions_by_default(
+        self, simple_comment_element
+    ) -> None:
+        comment = parse_modern_comment(simple_comment_element)
+        assert comment is not None
+        assert comment.reactions.total == 5
+
+    def test_parse_modern_comment_skips_reactions_when_requested(
+        self, simple_comment_element
+    ) -> None:
+        comment = parse_modern_comment(simple_comment_element, skip_reactions=True)
+        assert comment is not None
+        assert comment.reactions.total == 0
