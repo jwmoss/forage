@@ -524,11 +524,8 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
 
                 for i, article in enumerate(articles):
                     if options.verbose and len(posts) == 0 and i < 2:
-                        inner = (
-                            article.inner_text()[:200]
-                            if article.inner_text()
-                            else "(empty)"
-                        )
+                        article_text = article.inner_text()
+                        inner = article_text[:200] if article_text else "(empty)"
                         console.print(f"Article {i} preview: {repr(inner)}")
 
                     post = parse_modern_post(article, page)
