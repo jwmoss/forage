@@ -428,7 +428,6 @@ def parse_modern_post(
 
             # Try finding reaction count in text like "All reactions:\n44"
             if reactions.total == 0:
-                all_text = article.inner_text()
                 # Look for "All reactions:" followed by a number
                 match = re.search(r"All reactions:?\s*\n?(\d+)", all_text)
                 if match:
@@ -495,9 +494,11 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         if not content:
             paragraphs = article.query_selector_all("p")
-            content_parts = [
-                p.inner_text().strip() for p in paragraphs if p.inner_text().strip()
-            ]
+            content_parts = []
+            for p in paragraphs:
+                text = p.inner_text().strip()
+                if text:
+                    content_parts.append(text)
             content = "\n".join(content_parts)
 
         timestamp_elem = article.query_selector("abbr")
