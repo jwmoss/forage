@@ -515,11 +515,14 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 articles = []
                 for article in all_articles:
                     aria_label = article.get_attribute("aria-label") or ""
-                    aria_describedby = article.get_attribute("aria-describedby")
-                    # Posts have aria-describedby but NOT aria-label starting with
-                    # "Comment by"
-                    if aria_describedby and not aria_label.startswith("Comment by"):
-                        articles.append(article)
+                    # Skip elements that are explicitly comments
+                    if aria_label.startswith("Comment by"):
+                        continue
+                    # Skip empty elements (loading placeholders)
+                    text = article.inner_text().strip()
+                    if not text or len(text) < 20:
+                        continue
+                    articles.append(article)
 
                 if options.verbose and len(posts) == 0:
                     console.print(
