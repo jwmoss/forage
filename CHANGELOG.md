@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-01-25
+
+### Fixed
+
+- Scraper no longer stops early when Facebook serves posts out of chronological order
+  - Previously, a single post with an older timestamp would immediately terminate the scrape
+  - Now tracks consecutive old posts and only stops after 5 in a row
+  - Before: 10 posts found; After: 57 posts found (in a 24-hour window)
+- Improved scroll logic to load more posts from the feed
+  - Scrolls to the end of the feed instead of a fixed 1000px offset
+  - Waits for new DOM elements to appear before re-scraping, instead of a blind delay
+
 ## [1.0.6] - 2026-01-17
 
 ### Fixed
@@ -108,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/jwmoss/forage/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/jwmoss/forage/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/jwmoss/forage/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/jwmoss/forage/compare/v1.0.3...v1.0.4

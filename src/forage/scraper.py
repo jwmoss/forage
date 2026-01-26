@@ -489,6 +489,8 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
         seen_post_ids: set[str] = set()
         pages_without_new_posts = 0
         max_empty_pages = 3
+        consecutive_old_posts = 0
+        max_consecutive_old = 5
 
         with Progress(
             SpinnerColumn(),
@@ -555,10 +557,15 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
 
                     if post.timestamp:
                         if post.timestamp < since_date:
-                            pages_without_new_posts = max_empty_pages
-                            break
+                            consecutive_old_posts += 1
+                            if consecutive_old_posts >= max_consecutive_old:
+                                pages_without_new_posts = max_empty_pages
+                                break
+                            continue
                         if post.timestamp > until_date:
                             continue
+                        # Reset counter when we find a post in range
+                        consecutive_old_posts = 0
 
                     # Scrape comments if not skipped and post has comments
                     if not options.skip_comments and post.comments_count > 0:
@@ -603,9 +610,35 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                 if pages_without_new_posts >= max_empty_pages:
                     break
 
-                # Scroll down to load more posts with human-like timing
-                page.evaluate("window.scrollBy(0, 1000)")
-                human_delay(page, options.delay, options.delay * 0.3)
+                # Scroll to bottom of feed to trigger lazy loading
+                old_article_count = len(
+                    feed.query_selector_all('[role="article"]')
+                )
+                page.evaluate(
+                    """
+                    const feed = document.querySelector('[role="feed"]');
+                    if (feed) {
+                        feed.lastElementChild?.scrollIntoView({behavior: 'smooth'});
+                    } else {
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                    """
+                )
+
+                # Wait for new articles to appear in the DOM
+                try:
+                    page.wait_for_function(
+                        f"""() => {{
+                            const feed = document.querySelector('[role="feed"]');
+                            if (!feed) return false;
+                            return feed.querySelectorAll('[role="article"]').length > {old_article_count};
+                        }}""",
+                        timeout=int((options.delay + 3) * 1000),
+                    )
+                except PlaywrightTimeoutError:
+                    pass  # No new articles loaded; the empty-page counter handles this
+
+                human_delay(page, options.delay * 0.5, options.delay * 0.2)
 
                 if options.verbose:
                     progress.update(
