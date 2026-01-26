@@ -611,9 +611,7 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                     break
 
                 # Scroll to bottom of feed to trigger lazy loading
-                old_article_count = len(
-                    feed.query_selector_all('[role="article"]')
-                )
+                old_article_count = len(feed.query_selector_all('[role="article"]'))
                 page.evaluate(
                     """
                     const feed = document.querySelector('[role="feed"]');
