@@ -393,14 +393,19 @@ def parse_modern_post(
                 if timestamp:
                     break
 
-        # Extract post ID from any permalink
+        # Extract post ID and permalink from any post link
         post_id = None
+        post_url = None
         all_links = article.query_selector_all("a[href]")
         for link in all_links:
             href = link.get_attribute("href")
             if href:
                 post_id = extract_post_id(href)
                 if post_id:
+                    if href.startswith("http"):
+                        post_url = href.split("?")[0]
+                    else:
+                        post_url = f"https://www.facebook.com{href}".split("?")[0]
                     break
 
         if not post_id:
@@ -460,6 +465,7 @@ def parse_modern_post(
 
         return Post(
             id=post_id,
+            url=post_url,
             author=Author(name=author_name, profile_url=profile_url),
             content=content,
             timestamp=timestamp,
@@ -509,10 +515,16 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         post_link = article.query_selector('a[href*="/story.php"], a[href*="/posts/"]')
         post_id = None
+        post_url = None
         if post_link:
             href = post_link.get_attribute("href")
             if href:
                 post_id = extract_post_id(href)
+                if post_id:
+                    if href.startswith("http"):
+                        post_url = href.split("?")[0]
+                    else:
+                        post_url = f"https://www.facebook.com{href}".split("?")[0]
 
         if not post_id:
             data_ft = article.get_attribute("data-ft")
@@ -545,6 +557,7 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
 
         return Post(
             id=post_id,
+            url=post_url,
             author=Author(name=author_name, profile_url=profile_url),
             content=content,
             timestamp=timestamp,

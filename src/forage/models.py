@@ -42,6 +42,7 @@ class Post(BaseModel):
     """A Facebook group post."""
 
     id: str
+    url: Optional[str] = None
     author: Author
     content: str
     timestamp: Optional[datetime] = None

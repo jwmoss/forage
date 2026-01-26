@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-01-25
+
+### Added
+
+- Post URL field in all export formats (JSON, LLM)
+  - Each post now includes a direct Facebook permalink (e.g. `https://www.facebook.com/groups/.../posts/123/`)
+  - Makes exported data easy to cross-reference with the original posts
+
+### Changed
+
+- Updated release process documentation in CLAUDE.md and AGENTS.md
+  - Added `ruff format` step and `__init__.py` version update to release checklist
+
 ## [1.0.7] - 2026-01-25
 
 ### Fixed
@@ -120,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.8...HEAD
+[1.0.8]: https://github.com/jwmoss/forage/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/jwmoss/forage/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/jwmoss/forage/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/jwmoss/forage/compare/v1.0.4...v1.0.5

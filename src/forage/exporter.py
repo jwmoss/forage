@@ -128,6 +128,7 @@ def _post_to_llm_format(post: Post, top_comments: int = 3) -> dict[str, Any]:
 
     return {
         "id": post.id,
+        "url": post.url,
         "content": post.content,
         "engagement": {
             "reactions": post.reactions.total if post.reactions else 0,

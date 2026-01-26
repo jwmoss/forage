@@ -116,13 +116,14 @@ Sessions typically expire after ~30 days or if Facebook detects unusual activity
 ### Release Checklist
 
 1. Determine correct version bump (PATCH/MINOR/MAJOR)
-2. Update `version` in `pyproject.toml`
+2. Update `version` in both `pyproject.toml` and `src/forage/__init__.py`
 3. Update `CHANGELOG.md` with new version section
-4. Commit: `chore: release vX.Y.Z`
-5. Push to master
-6. Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-7. Push tag: `git push origin vX.Y.Z`
-8. Create GitHub release (triggers PyPI publish)
+4. Run `uv run ruff format src/ tests/` — CI enforces formatting
+5. Commit: `chore: release vX.Y.Z`
+6. Push to master
+7. Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+8. Push tag: `git push origin vX.Y.Z`
+9. Create GitHub release (triggers PyPI publish)
 
 ### Workflow
 
