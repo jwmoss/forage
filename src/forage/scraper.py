@@ -181,7 +181,7 @@ def normalize_group_identifier(group: str) -> str:
     group = group.strip()
 
     patterns = [
-        r"facebook\.com/groups/([^/?]+)",
+        r"facebook\.com/groups/([^/?#]+)",
         r"^(\d+)$",
         r"^([a-zA-Z][\w.-]+)$",
     ]
@@ -243,6 +243,50 @@ def create_browser_context(
     return context
 
 
+def _find_comment_articles(container: Page | ElementHandle) -> list[ElementHandle]:
+    """Find likely comment article elements inside a page or post container."""
+    comment_articles = container.query_selector_all(
+        '[role="article"][aria-label^="Comment by"]'
+    )
+    if comment_articles:
+        return comment_articles
+
+    return container.query_selector_all('[role="article"]')
+
+
+def _has_comment_aria(container: Page | ElementHandle) -> bool:
+    return bool(container.query_selector('[role="article"][aria-label^="Comment by"]'))
+
+
+def _is_nested_comment_article(
+    element: ElementHandle,
+    *,
+    use_comment_aria: bool,
+) -> bool:
+    """
+    Return True when this comment article is nested under another comment article.
+
+    When Facebook exposes "Comment by ..." aria-labels, use those to avoid treating
+    top-level comments nested inside the post article as replies.
+    """
+    selector = (
+        '[role="article"][aria-label^="Comment by"]'
+        if use_comment_aria
+        else '[role="article"]'
+    )
+    try:
+        return bool(
+            element.evaluate(
+                """(node, selector) => Boolean(
+                    node.parentElement?.closest(selector)
+                )""",
+                selector,
+            )
+        )
+    except Exception:
+        return False
+
+
 def scrape_post_comments(
     page: Page,
     article: ElementHandle,
@@ -262,7 +306,7 @@ def scrape_post_comments(
     try:
         # Find all comment containers
         # Modern Facebook comments are in divs with specific structure
-        comment_elements = article.query_selector_all('div[role="article"]')
+        comment_elements = _find_comment_articles(article)
 
         if not comment_elements:
             # Try alternative selector for comments
@@ -309,7 +353,7 @@ def scrape_post_comments(
                 continue
 
         # After expanding, try to get more comments
-        expanded_comments = article.query_selector_all('div[role="article"]')
+        expanded_comments = _find_comment_articles(article)
         for elem in expanded_comments:
             comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if comment and comment.content and comment.id not in seen_comment_ids:
@@ -345,55 +389,71 @@ def scrape_comments_from_post_page(
 
     comments: list[Comment] = []
     seen_comment_ids: set[str] = set()
-    original_url = page.url
+    comment_page = page.context.new_page()
 
     try:
         # Navigate to the post page with retry
-        navigate_with_retry(page, post_url, max_retries=2, verbose=options.verbose)
-        human_delay(page, options.delay, options.delay * 0.3)
+        navigate_with_retry(
+            comment_page,
+            post_url,
+            max_retries=2,
+            verbose=options.verbose,
+        )
+        human_delay(comment_page, options.delay, options.delay * 0.3)
 
         # Wait for comments to load
         try:
-            page.wait_for_selector('[role="article"]', timeout=5000)
+            comment_page.wait_for_selector('[role="article"]', timeout=5000)
         except Exception:
             pass
 
         # Click "View more comments" buttons to expand all
         for _ in range(3):  # Try up to 3 times to load more
             try:
-                view_more = page.query_selector(
+                view_more = comment_page.query_selector(
                     'span:has-text("View more comments"), span:has-text("View all")'
                 )
                 if view_more:
                     view_more.click()
-                    human_delay(page, options.delay * 0.5, options.delay * 0.2)
+                    human_delay(
+                        comment_page,
+                        options.delay * 0.5,
+                        options.delay * 0.2,
+                    )
                 else:
                     break
             except Exception:
                 break
 
         # Find all comment elements
-        comment_elements = page.query_selector_all('[role="article"]')
+        comment_elements = _find_comment_articles(comment_page)
+        use_comment_aria = _has_comment_aria(comment_page)
 
         for elem in comment_elements:
+            if _is_nested_comment_article(elem, use_comment_aria=use_comment_aria):
+                continue
+
             comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
             if comment and comment.content and comment.id not in seen_comment_ids:
-                comments.append(comment)
-                seen_comment_ids.add(comment.id)
-
-        # Also try to get nested replies
-        reply_elements = page.query_selector_all(
-            'div[role="article"] div[role="article"]'
-        )
-        for elem in reply_elements:
-            reply = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
-            if reply and reply.content:
-                # Find parent comment and add as reply
-                for comment in comments:
-                    if reply.id not in [r.id for r in comment.replies]:
-                        # Simple heuristic: if reply is within the comment element
+                reply_ids: set[str] = set()
+                for reply_elem in _find_comment_articles(elem):
+                    reply = parse_modern_comment(
+                        reply_elem,
+                        skip_reactions=options.skip_reactions,
+                    )
+                    if (
+                        reply
+                        and reply.content
+                        and reply.id != comment.id
+                        and reply.id not in seen_comment_ids
+                        and reply.id not in reply_ids
+                    ):
                         comment.replies.append(reply)
-                        break
+                        reply_ids.add(reply.id)
+                        seen_comment_ids.add(reply.id)
+
+                seen_comment_ids.add(comment.id)
+                comments.append(comment)
 
     except Exception as e:
         if options.verbose:
@@ -402,10 +462,8 @@ def scrape_comments_from_post_page(
             )
 
     finally:
-        # Navigate back to the group feed
         try:
-            page.goto(original_url, wait_until="domcontentloaded")
-            human_delay(page, options.delay * 0.5, options.delay * 0.2)
+            comment_page.close()
         except Exception:
             pass
 

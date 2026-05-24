@@ -85,7 +85,7 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
 @click.argument("group")
 @click.option(
     "--days",
-    type=int,
+    type=click.IntRange(min=0),
     default=7,
     help="Scrape posts from the last N days (default: 7)",
 )
@@ -103,25 +103,25 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
 )
 @click.option(
     "--limit",
-    type=int,
+    type=click.IntRange(min=0),
     default=0,
     help="Maximum number of posts to fetch (0 = no limit)",
 )
 @click.option(
     "--delay",
-    type=float,
+    type=click.FloatRange(min=0),
     default=2.0,
     help="Seconds to wait between page loads (rate limiting)",
 )
 @click.option(
     "--min-reactions",
-    type=int,
+    type=click.IntRange(min=0),
     default=0,
     help="Only include comments with at least N reactions",
 )
 @click.option(
     "--top-comments",
-    type=int,
+    type=click.IntRange(min=0),
     default=0,
     help="Keep only the top N comments per post by reactions",
 )

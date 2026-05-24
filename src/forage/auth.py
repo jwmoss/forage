@@ -115,11 +115,7 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
             if page.query_selector(selector):
                 return True
 
-        # If we're on a group page and see content, we're logged in
-        if "facebook.com/groups" in page.url:
-            return True
-
-        return True
+        return False
 
     except Exception:
         return False

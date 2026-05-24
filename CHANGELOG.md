@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-05-24
+
+### Fixed
+
+- Tightened login detection so expired or checkpointed sessions no longer pass
+  just because the browser is on a Facebook group URL
+- Scrape post-page comments in a separate browser page to avoid invalidating
+  cached feed element handles while iterating posts
+- Attach nested replies to the comment element that contains them instead of the
+  first parsed comment
+- Strip URL fragments from Facebook group identifiers
+- Reject negative CLI values for date windows, limits, delays, and comment
+  filters
+
+### Changed
+
+- Added `ruff` to the development extra so local lint and format commands do
+  not depend on a globally installed tool
+
 ## [1.0.8] - 2026-01-25
 
 ### Added
@@ -133,7 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.0.9...HEAD
+[1.0.9]: https://github.com/jwmoss/forage/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/jwmoss/forage/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/jwmoss/forage/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/jwmoss/forage/compare/v1.0.5...v1.0.6

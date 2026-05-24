@@ -118,3 +118,21 @@ class TestCliOptions:
         """Test days must be a valid number."""
         result = runner.invoke(main, ["scrape", "testgroup", "--days", "abc"])
         assert result.exit_code == 2
+
+    def test_days_cannot_be_negative(self, runner: CliRunner) -> None:
+        """Test negative days are rejected."""
+        result = runner.invoke(main, ["scrape", "testgroup", "--days", "-1"])
+        assert result.exit_code == 2
+        assert "Invalid value" in result.output
+
+    def test_delay_cannot_be_negative(self, runner: CliRunner) -> None:
+        """Test negative delay is rejected."""
+        result = runner.invoke(main, ["scrape", "testgroup", "--delay", "-0.5"])
+        assert result.exit_code == 2
+        assert "Invalid value" in result.output
+
+    def test_limit_cannot_be_negative(self, runner: CliRunner) -> None:
+        """Test negative limit is rejected."""
+        result = runner.invoke(main, ["scrape", "testgroup", "--limit", "-1"])
+        assert result.exit_code == 2
+        assert "Invalid value" in result.output

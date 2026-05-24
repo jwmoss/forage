@@ -163,9 +163,7 @@ class TestNormalizeGroupIdentifierEdgeCases:
     def test_url_with_fragment(self) -> None:
         """Test URL with fragment."""
         url = "https://www.facebook.com/groups/mycityfoodies#posts"
-        # Fragment should be stripped or ignored
-        result = normalize_group_identifier(url)
-        assert "mycityfoodies" in result
+        assert normalize_group_identifier(url) == "mycityfoodies"
 
     def test_very_long_slug(self) -> None:
         """Test very long group slug."""
@@ -234,9 +232,13 @@ class TestCommentDedupe:
 
         elem1 = MagicMock()
         elem2 = MagicMock()
+        elem1.query_selector_all.return_value = []
+        elem2.query_selector_all.return_value = []
 
         def query_selector_all(selector: str):
-            if selector == 'div[role="article"]':
+            if selector == '[role="article"][aria-label^="Comment by"]':
+                return []
+            if selector == '[role="article"]':
                 return [elem1, elem2]
             return []
 
@@ -251,33 +253,37 @@ class TestCommentDedupe:
         assert [c.id for c in comments] == ["c1"]
 
     def test_scrape_comments_from_post_page_dedupes_by_id(self) -> None:
-        page = MagicMock(
+        page = MagicMock(spec=["context"])
+        comment_page = MagicMock(
             spec=[
-                "goto",
+                "close",
                 "query_selector",
                 "query_selector_all",
                 "wait_for_selector",
                 "wait_for_timeout",
             ]
         )
-        page.url = "https://example.com/original"
-        page.query_selector.return_value = None
+        page.context.new_page.return_value = comment_page
+        comment_page.query_selector.return_value = None
 
         elem1 = MagicMock()
         elem2 = MagicMock()
 
         def query_selector_all(selector: str):
+            if selector == '[role="article"][aria-label^="Comment by"]':
+                return []
             if selector == '[role="article"]':
                 return [elem1, elem2]
             return []
 
-        page.query_selector_all.side_effect = query_selector_all
+        comment_page.query_selector_all.side_effect = query_selector_all
 
         options = ScrapeOptions(delay=0)
         comment = Comment(id="c1", author=Author(name="A"), content="hello")
 
         with (
             patch("forage.scraper.navigate_with_retry"),
+            patch("forage.scraper._is_nested_comment_article", return_value=False),
             patch("forage.scraper.parse_modern_comment", return_value=comment),
         ):
             comments = scrape_comments_from_post_page(
@@ -285,3 +291,93 @@ class TestCommentDedupe:
             )
 
         assert [c.id for c in comments] == ["c1"]
+        page.context.new_page.assert_called_once_with()
+        comment_page.close.assert_called_once_with()
+
+    def test_scrape_comments_from_post_page_uses_separate_page(self) -> None:
+        page = MagicMock(spec=["context"])
+        comment_page = MagicMock(
+            spec=[
+                "close",
+                "query_selector",
+                "query_selector_all",
+                "wait_for_selector",
+                "wait_for_timeout",
+            ]
+        )
+        page.context.new_page.return_value = comment_page
+        comment_page.query_selector.return_value = None
+        comment_page.query_selector_all.return_value = []
+
+        options = ScrapeOptions(delay=0)
+
+        with patch("forage.scraper.navigate_with_retry") as mock_navigate:
+            scrape_comments_from_post_page(page, "https://example.com/post", options)
+
+        mock_navigate.assert_called_once()
+        assert mock_navigate.call_args.args[0] is comment_page
+        comment_page.close.assert_called_once_with()
+
+    def test_scrape_comments_from_post_page_attaches_replies_to_parent(self) -> None:
+        page = MagicMock(spec=["context"])
+        comment_page = MagicMock(
+            spec=[
+                "close",
+                "query_selector",
+                "query_selector_all",
+                "wait_for_selector",
+                "wait_for_timeout",
+            ]
+        )
+        page.context.new_page.return_value = comment_page
+
+        def page_query_selector(selector: str):
+            if selector == '[role="article"][aria-label^="Comment by"]':
+                return object()
+            return None
+
+        comment_page.query_selector.side_effect = page_query_selector
+
+        parent1 = MagicMock()
+        reply1 = MagicMock()
+        parent2 = MagicMock()
+        reply2 = MagicMock()
+        parent1.query_selector_all.return_value = [reply1]
+        parent2.query_selector_all.return_value = [reply2]
+        reply1.query_selector_all.return_value = []
+        reply2.query_selector_all.return_value = []
+
+        def page_query_selector_all(selector: str):
+            if selector == '[role="article"][aria-label^="Comment by"]':
+                return [parent1, reply1, parent2, reply2]
+            return []
+
+        comment_page.query_selector_all.side_effect = page_query_selector_all
+
+        comments_by_element = {
+            parent1: Comment(id="p1", author=Author(name="P1"), content="parent one"),
+            reply1: Comment(id="r1", author=Author(name="R1"), content="reply one"),
+            parent2: Comment(id="p2", author=Author(name="P2"), content="parent two"),
+            reply2: Comment(id="r2", author=Author(name="R2"), content="reply two"),
+        }
+
+        def parse_comment(elem, *, skip_reactions: bool = False):
+            return comments_by_element[elem]
+
+        def nested(elem, *, use_comment_aria: bool):
+            return elem in {reply1, reply2}
+
+        options = ScrapeOptions(delay=0)
+
+        with (
+            patch("forage.scraper.navigate_with_retry"),
+            patch("forage.scraper._is_nested_comment_article", side_effect=nested),
+            patch("forage.scraper.parse_modern_comment", side_effect=parse_comment),
+        ):
+            comments = scrape_comments_from_post_page(
+                page, "https://example.com/post", options
+            )
+
+        assert [comment.id for comment in comments] == ["p1", "p2"]
+        assert [reply.id for reply in comments[0].replies] == ["r1"]
+        assert [reply.id for reply in comments[1].replies] == ["r2"]
