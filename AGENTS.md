@@ -1,140 +1,107 @@
-# Agent Context for Forage
+# CLAUDE.md
 
-This document provides context for AI agents working on this codebase.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Project Purpose
 
-**Forage** is a Python CLI tool for scraping private Facebook groups. It uses Playwright for browser automation with saved session cookies for authentication.
+Forage is a CLI tool for scraping private Facebook groups to analyze community discussions — identifying trends, popular topics, and gathering data for potential app ideas.
 
-## Key Architecture Decisions
-
-### Browser Automation (Not API)
-Facebook doesn't provide a public API for group data. We use Playwright to automate a real browser, which:
-- Looks like legitimate user activity
-- Works with private groups
-- Handles JavaScript-heavy modern Facebook UI
-
-### Session-Based Auth
-Users log in manually once via `forage login`, which saves browser cookies to `~/.config/forage/session/`. This avoids storing credentials and handles 2FA.
-
-### Anti-Detection
-- Random delays between actions (not fixed timing)
-- Random viewport sizes from common resolutions
-- Real browser fingerprint (Playwright uses actual Chromium)
-
-## File Structure
-
-```
-src/forage/
-├── cli.py       # Entry point, Click commands
-├── auth.py      # Login flow, session persistence
-├── scraper.py   # Main scraping orchestration
-├── parser.py    # HTML parsing (posts, comments)
-└── models.py    # Pydantic models for data
-```
-
-## Common Tasks
-
-### Adding a New CLI Flag
-1. Add to `ScrapeOptions` dataclass in `scraper.py`
-2. Add Click option in `cli.py` scrape command
-3. Pass to `ScrapeOptions` when constructing
-
-### Fixing Broken Selectors
-Facebook frequently changes their HTML. When scraping breaks:
-1. Run with `--no-headless -v` to see the browser
-2. Use browser DevTools to inspect current HTML
-3. Update selectors in `parser.py` (look for `query_selector`)
-
-### Adding New Data Fields
-1. Add field to model in `models.py`
-2. Extract in appropriate `parse_*` function in `parser.py`
-3. JSON output updates automatically (Pydantic)
-
-## Known Fragile Areas
-
-1. **Post selectors** (`[data-pagelet^="FeedUnit"]`) - Facebook changes these
-2. **Timestamp parsing** - Many formats, relative times ("2h", "Yesterday")
-3. **Comment expansion** - "View more comments" button selectors change
-4. **Reaction counts** - Multiple ways reactions appear in HTML
-
-## Testing
+## Development Commands
 
 ```bash
-# Quick test (3 posts, no comments)
-uv run forage -v scrape GROUP_SLUG --limit 3 --skip-comments
-
-# Debug mode (watch browser)
-uv run forage -v scrape GROUP_SLUG --limit 1 --no-headless
-
-# Type check
-uv run ty check src/
+uv sync                              # Install deps (always use uv, not pip/python)
+uv run forage --help                 # Run CLI
+uv run ty check src/                 # Type check (Astral's ty)
+uv run pytest                        # Run all tests
+uv run pytest tests/test_parser.py   # Run a single test file
+uv run pytest -k "test_name"         # Run a single test by name
+uv run ruff check src/ tests/        # Lint
+uv run ruff format src/ tests/       # Auto-format (CI enforces this)
 ```
 
-## Dependencies
+## Manual Testing
 
-- **click**: CLI framework
-- **playwright**: Browser automation
-- **pydantic**: Data validation and JSON serialization
-- **rich**: Terminal output formatting
+```bash
+uv run forage -v scrape GROUP_SLUG --limit 3 --skip-comments   # Quick test
+uv run forage -v scrape GROUP_SLUG --limit 1 --no-headless     # Watch browser
+```
 
-## Anti-Detection Strategy
+## Architecture
 
-The scraper uses several techniques to appear human:
+### Module Flow
 
-1. **Random delays**: `human_delay()` adds variance to wait times
-2. **Viewport randomization**: Picks from common screen sizes
-3. **Real browser**: Playwright runs actual Chromium, not headless-only
-4. **Session persistence**: Uses real logged-in session, not API tokens
+```
+cli.py → scraper.py → parser.py → models.py
+           ↓                         ↑
+         auth.py                  exporter.py
+```
 
-## Rate Limiting
+- **cli.py** — Click commands (`login`, `scrape`), option parsing, output dispatch
+- **scraper.py** — Playwright browser orchestration, scrolling, comment expansion, retry logic
+- **parser.py** — HTML heuristics to extract posts/comments from Facebook's React DOM
+- **models.py** — Pydantic models: `Post`, `Comment`, `Author`, `Reactions`, `ScrapeResult`
+- **auth.py** — Manual login flow, session persistence to `~/.config/forage/session/storage_state.json`
+- **exporter.py** — Output formats: JSON (default), SQLite, CSV, LLM-optimized (with pain-point scoring)
 
-Default delay is 2 seconds between actions. For large scrapes:
-- Use `--delay 5.0` or higher
-- Consider running in batches with breaks
-- Facebook may temporarily block if too aggressive
+### Scraping Flow
 
-## Session Management
+1. `cli.py:scrape()` builds `ScrapeOptions` and calls `scraper.py:scrape_group()`
+2. Playwright launches browser, loads saved session cookies, navigates to group
+3. Main loop finds `[role="article"]` elements within `[role="feed"]`, filters out comments (aria-label "Comment by")
+4. Each article → `parser.py:parse_modern_post()` extracts author, content, timestamp, reactions
+5. Comments scraped from article element or by navigating to post permalink
+6. Scrolls to end of feed, waits for new DOM elements, repeats until date range exhausted
+7. Returns `ScrapeResult` (auto-serializes to JSON via Pydantic)
 
-Sessions are stored in `~/.config/forage/session/storage_state.json`. This includes:
-- Cookies
-- Local storage
-- Session storage
+### Anti-Detection
 
-Sessions typically expire after ~30 days or if Facebook detects unusual activity.
+Random viewport sizes, `human_delay()` with variance, real Chromium browser, session-based auth (no API tokens).
+
+### Test Structure
+
+Tests in `tests/` with HTML fixtures in `tests/fixtures/` (realistic Facebook HTML snippets). `conftest.py` provides `create_mock_element()` for creating mock Playwright `ElementHandle` objects from HTML strings.
+
+## Fragile Code — Check Here First When Things Break
+
+Facebook changes their HTML frequently. These areas break most often:
+
+1. **`parser.py:parse_modern_post()`** — Post extraction heuristics (author detection, content extraction, timestamp parsing)
+2. **`scraper.py` selectors** — `[role="feed"]`, `[role="article"]`, comment expansion buttons
+3. **Timestamp parsing in `parser.py`** — Relative times ("2h", "Yesterday", "3d"), compact notation ("1.2K")
+
+Debug with: `uv run forage -v scrape GROUP --limit 1 --no-headless`
+
+## Common Changes
+
+**Adding a CLI flag**: Add to `ScrapeOptions` dataclass in `scraper.py` → add Click option in `cli.py` → pass through when constructing `ScrapeOptions`
+
+**Fixing broken selectors**: Run with `--no-headless -v` → inspect with DevTools → update `query_selector` calls in `parser.py`
+
+**Adding a data field**: Add to Pydantic model in `models.py` → extract in `parser.py` `parse_*` function → JSON output updates automatically
+
+## Code Style
+
+- Type hints on all functions, `from __future__ import annotations` for forward refs
+- Docstrings for public functions
+- Ruff for formatting and linting (CI enforces both)
 
 ## Release Process
 
-**CRITICAL: Follow semantic versioning. PyPI cannot delete published versions.**
+**IMPORTANT: PyPI cannot delete published versions. Follow semver strictly.**
 
-### Version Numbering (Semver)
+| Change Type | Bump | Example |
+|---|---|---|
+| Bug fixes, optimizations | PATCH (1.0.x) | Fix parsing, improve scroll logic |
+| New backward-compatible features | MINOR (1.x.0) | New CLI flag, new export format |
+| Breaking changes | MAJOR (x.0.0) | Changed CLI interface, removed feature |
 
-- **PATCH (1.0.x)**: Bug fixes, improvements, optimizations
-- **MINOR (1.x.0)**: New backward-compatible features
-- **MAJOR (x.0.0)**: Breaking changes
-
-### Release Checklist
-
-1. Determine correct version bump (PATCH/MINOR/MAJOR)
-2. Update `version` in both `pyproject.toml` and `src/forage/__init__.py`
-3. Update `CHANGELOG.md` with new version section
-4. Run `uv run ruff format src/ tests/` — CI enforces formatting
-5. Commit: `chore: release vX.Y.Z`
-6. Push to master
-7. Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-8. Push tag: `git push origin vX.Y.Z`
-9. Create GitHub release (triggers PyPI publish)
-
-### Workflow
-
-The `.github/workflows/publish.yml` workflow:
-- Triggers on GitHub release publish
-- Uses OIDC trusted publishing (no tokens)
-- Publishes to PyPI automatically
-
-### Recovery
-
-If wrong version published to PyPI:
-- Cannot delete, only "yank" via https://pypi.org/manage/project/ForageFacebook/releases/
-- Create corrected version and release it
-- Document the mistake in changelog
+Steps:
+1. Update `version` in both `pyproject.toml` and `src/forage/__init__.py`
+2. Run `uv lock --no-config` — refresh locked editable package metadata without leaking user-level uv settings
+3. Update `CHANGELOG.md` — add version section under `## [Unreleased]`, update comparison links at bottom
+4. Run `uv lock --check --no-config` and `uv run ruff format src/ tests/` — CI enforces formatting
+5. Commit: `git commit -m "chore: release vX.Y.Z"`
+6. Push: `git push origin master`
+7. Tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"` then `git push origin vX.Y.Z`
+8. Create GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
+   — This triggers `.github/workflows/publish.yml` which publishes to PyPI via OIDC (no tokens)
