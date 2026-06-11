@@ -121,28 +121,3 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
         return False
 
 
-def is_logged_in(
-    session_dir: Optional[Path] = None,
-    browser_type: str = "chromium",
-) -> bool:
-    """Check if the saved session is still valid."""
-    if not session_exists(session_dir):
-        return False
-
-    with sync_playwright() as p:
-        browser = getattr(p, browser_type).launch(headless=True)
-        context = load_context(browser, session_dir)
-        page = context.new_page()
-
-        result = is_logged_in_page(page)
-
-        browser.close()
-        return result
-
-
-def clear_session(session_dir: Optional[Path] = None) -> None:
-    """Remove saved session data."""
-    session_path = get_session_path(session_dir)
-    if session_path.exists():
-        session_path.unlink()
-        console.print("Session cleared.")
