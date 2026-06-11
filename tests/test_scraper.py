@@ -361,7 +361,7 @@ class TestCommentDedupe:
             reply2: Comment(id="r2", author=Author(name="R2"), content="reply two"),
         }
 
-        def parse_comment(elem, *, skip_reactions: bool = False):
+        def parse_comment(elem, *, skip_reactions: bool = False, verbose: bool = False):
             return comments_by_element[elem]
 
         def nested(elem, *, use_comment_aria: bool):

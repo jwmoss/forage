@@ -320,6 +320,7 @@ def scrape_post_comments(
                     comment = parse_modern_comment(
                         elem,
                         skip_reactions=options.skip_reactions,
+                        verbose=options.verbose,
                     )
                     if (
                         comment
@@ -330,7 +331,11 @@ def scrape_post_comments(
                         seen_comment_ids.add(comment.id)
 
         for elem in comment_elements:
-            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
+            comment = parse_modern_comment(
+                elem,
+                skip_reactions=options.skip_reactions,
+                verbose=options.verbose,
+            )
             if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
                 seen_comment_ids.add(comment.id)
@@ -355,7 +360,11 @@ def scrape_post_comments(
         # After expanding, try to get more comments
         expanded_comments = _find_comment_articles(article)
         for elem in expanded_comments:
-            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
+            comment = parse_modern_comment(
+                elem,
+                skip_reactions=options.skip_reactions,
+                verbose=options.verbose,
+            )
             if comment and comment.content and comment.id not in seen_comment_ids:
                 comments.append(comment)
                 seen_comment_ids.add(comment.id)
@@ -433,13 +442,18 @@ def scrape_comments_from_post_page(
             if _is_nested_comment_article(elem, use_comment_aria=use_comment_aria):
                 continue
 
-            comment = parse_modern_comment(elem, skip_reactions=options.skip_reactions)
+            comment = parse_modern_comment(
+                elem,
+                skip_reactions=options.skip_reactions,
+                verbose=options.verbose,
+            )
             if comment and comment.content and comment.id not in seen_comment_ids:
                 reply_ids: set[str] = set()
                 for reply_elem in _find_comment_articles(elem):
                     reply = parse_modern_comment(
                         reply_elem,
                         skip_reactions=options.skip_reactions,
+                        verbose=options.verbose,
                     )
                     if (
                         reply
@@ -549,6 +563,8 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
         max_empty_pages = 3
         consecutive_old_posts = 0
         max_consecutive_old = 5
+        found_articles = False
+        parsed_any = False
 
         with Progress(
             SpinnerColumn(),
@@ -584,6 +600,9 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         continue
                     articles.append(article)
 
+                if articles:
+                    found_articles = True
+
                 if options.verbose and len(posts) == 0:
                     console.print(
                         f"Found {len(all_articles)} [role='article'] elements, "
@@ -602,11 +621,14 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         article,
                         page,
                         skip_reactions=options.skip_reactions,
+                        verbose=options.verbose,
                     )
                     if not post:
                         if options.verbose and len(posts) == 0 and i < 2:
                             console.print(f"Article {i}: parse returned None")
                         continue
+
+                    parsed_any = True
 
                     if post.id in seen_post_ids:
                         continue
@@ -703,6 +725,13 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                     )
 
         browser.close()
+
+    if found_articles and not parsed_any:
+        console.print(
+            "[yellow]Warning: feed articles were found but none parsed as posts — "
+            "Facebook may have changed their HTML. "
+            "Re-run with -v to see parse errors.[/yellow]"
+        )
 
     if options.verbose:
         console.print(f"[green]Scraped {len(posts)} posts[/green]")

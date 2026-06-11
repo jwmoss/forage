@@ -9,8 +9,20 @@ from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 from playwright.sync_api import ElementHandle, Page
+from rich.console import Console
 
 from forage.models import Author, Comment, Post, Reactions
+
+console = Console(stderr=True)
+
+
+def _warn_parse_failure(kind: str, error: Exception, *, verbose: bool) -> None:
+    """Surface a parse exception instead of silently dropping the element."""
+    if verbose:
+        console.print(
+            f"[yellow]Warning: failed to parse {kind} "
+            f"({type(error).__name__}: {error})[/yellow]"
+        )
 
 
 def _stable_id(prefix: str, *parts: str) -> str:
@@ -229,6 +241,7 @@ def parse_modern_post(
     page: Page,
     *,
     skip_reactions: bool = False,
+    verbose: bool = False,
 ) -> Optional[Post]:
     """Parse a post from www.facebook.com (modern React UI)."""
     try:
@@ -474,11 +487,17 @@ def parse_modern_post(
             comments=[],
         )
 
-    except Exception:
+    except Exception as e:
+        _warn_parse_failure("post", e, verbose=verbose)
         return None
 
 
-def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
+def parse_mbasic_post(
+    article: ElementHandle,
+    page: Page,
+    *,
+    verbose: bool = False,
+) -> Optional[Post]:
     """Parse a post from mbasic.facebook.com HTML."""
     try:
         header = article.query_selector("h3")
@@ -566,11 +585,16 @@ def parse_mbasic_post(article: ElementHandle, page: Page) -> Optional[Post]:
             comments=[],
         )
 
-    except Exception:
+    except Exception as e:
+        _warn_parse_failure("post", e, verbose=verbose)
         return None
 
 
-def parse_mbasic_comment(comment_div: ElementHandle) -> Optional[Comment]:
+def parse_mbasic_comment(
+    comment_div: ElementHandle,
+    *,
+    verbose: bool = False,
+) -> Optional[Comment]:
     """Parse a comment from mbasic.facebook.com HTML."""
     try:
         author_link = comment_div.query_selector("h3 a")
@@ -618,7 +642,8 @@ def parse_mbasic_comment(comment_div: ElementHandle) -> Optional[Comment]:
             replies=[],
         )
 
-    except Exception:
+    except Exception as e:
+        _warn_parse_failure("comment", e, verbose=verbose)
         return None
 
 
@@ -626,6 +651,7 @@ def parse_modern_comment(
     element: ElementHandle,
     *,
     skip_reactions: bool = False,
+    verbose: bool = False,
 ) -> Optional[Comment]:
     """Parse a comment from www.facebook.com (modern React UI)."""
     try:
@@ -743,7 +769,8 @@ def parse_modern_comment(
             replies=[],
         )
 
-    except Exception:
+    except Exception as e:
+        _warn_parse_failure("comment", e, verbose=verbose)
         return None
 
 
