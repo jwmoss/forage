@@ -119,5 +119,3 @@ def is_logged_in_page(page: Page, navigate: bool = True) -> bool:
 
     except Exception:
         return False
-
-
