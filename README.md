@@ -126,10 +126,11 @@ Commands:
 | `--delay` | `2.0` | Seconds between page loads |
 | `--min-reactions` | `0` | Min reactions for comments |
 | `--top-comments` | `0` | Top N comments per post |
+| `--min-pain-score` | `0` | LLM format: exclude posts below this pain score |
 | `--skip-comments` | `false` | Skip comment fetching |
 | `--skip-reactions` | `false` | Skip reaction counts |
 | `-o, --output` | `-` | Output file (default: stdout) |
-| `-f, --format` | `json` | Output format: json, sqlite, csv |
+| `-f, --format` | `json` | Output format: json, llm, sqlite, csv |
 | `--no-headless` | `false` | Show browser window |
 | `--browser` | `chromium` | Browser: chromium, firefox, webkit |
 

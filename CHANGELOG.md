@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Parse failures are no longer silent: exceptions are logged with `-v`, and a
+  warning is printed when feed articles are found but none parse as posts
+- Permalink comment scraping no longer records the post itself as a comment
+  and drops the real comments when Facebook omits "Comment by" aria-labels
+- Yearless timestamps ("December 28") that would land in the future now roll
+  back a year instead of being filtered out of every date range
+- `--top-comments` now applies to the LLM export format (previously hardcoded
+  to 3) and JSON output files are written with explicit UTF-8 encoding
+- Release script refreshes `uv.lock` after the version bump and documents the
+  full release flow (annotated tag plus GitHub release, which triggers publish)
+
+### Added
+
+- `--min-pain-score` flag to filter LLM-format output by pain score
+
+### Removed
+
+- Dead code: unused retry decorator, mbasic.facebook.com parsers (the mbasic
+  site was discontinued), and unused auth helpers
+
 ## [1.0.9] - 2026-05-24
 
 ### Fixed
