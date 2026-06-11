@@ -2,7 +2,7 @@
 # Release script for forage
 # Usage: ./scripts/release.sh [patch|minor|major]
 
-set -e
+set -euo pipefail
 
 VERSION_TYPE=${1:-patch}
 
@@ -47,15 +47,22 @@ sed -i '' "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" pyproj
 # Update version in __init__.py
 sed -i '' "s/__version__ = \"$CURRENT_VERSION\"/__version__ = \"$NEW_VERSION\"/" src/forage/__init__.py
 
+# Refresh the lockfile so CI's `uv lock --check` passes on the release commit
+uv lock --no-config
+
 # Generate changelog entry from git log
 echo ""
 echo "Recent commits to include in changelog:"
-git log --oneline v${CURRENT_VERSION}..HEAD 2>/dev/null || git log --oneline -20
+git log --oneline "v${CURRENT_VERSION}..HEAD" 2>/dev/null || git log --oneline -20
 
 echo ""
 echo "Please update CHANGELOG.md with the new version entry."
 echo "Then run:"
 echo "  git add -A"
 echo "  git commit -m 'chore: release v$NEW_VERSION'"
-echo "  git tag v$NEW_VERSION"
-echo "  git push origin master --tags"
+echo "  git push origin master"
+echo "  git tag -a v$NEW_VERSION -m 'Release v$NEW_VERSION'"
+echo "  git push origin v$NEW_VERSION"
+echo "  gh release create v$NEW_VERSION --title 'v$NEW_VERSION' --notes '...'"
+echo ""
+echo "The GitHub release (not the tag push) triggers the PyPI publish workflow."
