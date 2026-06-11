@@ -258,33 +258,29 @@ def _has_comment_aria(container: Page | ElementHandle) -> bool:
     return bool(container.query_selector('[role="article"][aria-label^="Comment by"]'))
 
 
-def _is_nested_comment_article(
-    element: ElementHandle,
-    *,
-    use_comment_aria: bool,
-) -> bool:
+def _comment_article_depth(element: ElementHandle, selector: str) -> int:
     """
-    Return True when this comment article is nested under another comment article.
+    Count ancestor articles of this element matching the selector.
 
-    When Facebook exposes "Comment by ..." aria-labels, use those to avoid treating
-    top-level comments nested inside the post article as replies.
+    With "Comment by ..." aria-labels, top-level comments have depth 0. Without
+    them, the post itself is the outermost article (depth 0) and top-level
+    comments sit one article deep inside it (depth 1).
     """
-    selector = (
-        '[role="article"][aria-label^="Comment by"]'
-        if use_comment_aria
-        else '[role="article"]'
-    )
     try:
-        return bool(
-            element.evaluate(
-                """(node, selector) => Boolean(
-                    node.parentElement?.closest(selector)
-                )""",
-                selector,
-            )
+        return element.evaluate(
+            """(node, selector) => {
+                let depth = 0;
+                let current = node.parentElement?.closest(selector);
+                while (current) {
+                    depth += 1;
+                    current = current.parentElement?.closest(selector);
+                }
+                return depth;
+            }""",
+            selector,
         )
     except Exception:
-        return False
+        return -1
 
 
 def scrape_post_comments(
@@ -437,9 +433,18 @@ def scrape_comments_from_post_page(
         # Find all comment elements
         comment_elements = _find_comment_articles(comment_page)
         use_comment_aria = _has_comment_aria(comment_page)
+        if use_comment_aria:
+            depth_selector = '[role="article"][aria-label^="Comment by"]'
+            top_level_depth = 0
+        else:
+            # Without aria-labels every article matches, including the post
+            # itself: skip it (depth 0) and treat its direct article children
+            # as top-level comments (depth 1).
+            depth_selector = '[role="article"]'
+            top_level_depth = 1
 
         for elem in comment_elements:
-            if _is_nested_comment_article(elem, use_comment_aria=use_comment_aria):
+            if _comment_article_depth(elem, depth_selector) != top_level_depth:
                 continue
 
             comment = parse_modern_comment(

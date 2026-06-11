@@ -283,7 +283,7 @@ class TestCommentDedupe:
 
         with (
             patch("forage.scraper.navigate_with_retry"),
-            patch("forage.scraper._is_nested_comment_article", return_value=False),
+            patch("forage.scraper._comment_article_depth", return_value=1),
             patch("forage.scraper.parse_modern_comment", return_value=comment),
         ):
             comments = scrape_comments_from_post_page(
@@ -364,14 +364,14 @@ class TestCommentDedupe:
         def parse_comment(elem, *, skip_reactions: bool = False, verbose: bool = False):
             return comments_by_element[elem]
 
-        def nested(elem, *, use_comment_aria: bool):
-            return elem in {reply1, reply2}
+        def depth(elem, selector):
+            return 1 if elem in {reply1, reply2} else 0
 
         options = ScrapeOptions(delay=0)
 
         with (
             patch("forage.scraper.navigate_with_retry"),
-            patch("forage.scraper._is_nested_comment_article", side_effect=nested),
+            patch("forage.scraper._comment_article_depth", side_effect=depth),
             patch("forage.scraper.parse_modern_comment", side_effect=parse_comment),
         ):
             comments = scrape_comments_from_post_page(
@@ -381,3 +381,68 @@ class TestCommentDedupe:
         assert [comment.id for comment in comments] == ["p1", "p2"]
         assert [reply.id for reply in comments[0].replies] == ["r1"]
         assert [reply.id for reply in comments[1].replies] == ["r2"]
+
+    def test_no_comment_aria_skips_post_article_and_keeps_comments(self) -> None:
+        """Without "Comment by" aria-labels the post is itself an article: it
+        must not be recorded as a comment, and the real comments nested inside
+        it must not be dropped as replies."""
+        page = MagicMock(spec=["context"])
+        comment_page = MagicMock(
+            spec=[
+                "close",
+                "query_selector",
+                "query_selector_all",
+                "wait_for_selector",
+                "wait_for_timeout",
+            ]
+        )
+        page.context.new_page.return_value = comment_page
+        comment_page.query_selector.return_value = None  # no comment aria-labels
+
+        post_elem = MagicMock()
+        comment_elem = MagicMock()
+        reply_elem = MagicMock()
+
+        def page_query_selector_all(selector: str):
+            if selector == '[role="article"]':
+                return [post_elem, comment_elem, reply_elem]
+            return []
+
+        comment_page.query_selector_all.side_effect = page_query_selector_all
+
+        def comment_query_selector_all(selector: str):
+            if selector == '[role="article"]':
+                return [reply_elem]
+            return []
+
+        comment_elem.query_selector_all.side_effect = comment_query_selector_all
+        reply_elem.query_selector_all.return_value = []
+
+        depths = {post_elem: 0, comment_elem: 1, reply_elem: 2}
+
+        def fake_depth(elem, selector):
+            assert selector == '[role="article"]'
+            return depths[elem]
+
+        comments_by_element = {
+            post_elem: Comment(id="post", author=Author(name="OP"), content="post"),
+            comment_elem: Comment(id="c1", author=Author(name="A"), content="hello"),
+            reply_elem: Comment(id="r1", author=Author(name="B"), content="reply"),
+        }
+
+        def parse_comment(elem, *, skip_reactions: bool = False, verbose: bool = False):
+            return comments_by_element[elem]
+
+        options = ScrapeOptions(delay=0)
+
+        with (
+            patch("forage.scraper.navigate_with_retry"),
+            patch("forage.scraper._comment_article_depth", side_effect=fake_depth),
+            patch("forage.scraper.parse_modern_comment", side_effect=parse_comment),
+        ):
+            comments = scrape_comments_from_post_page(
+                page, "https://example.com/post", options
+            )
+
+        assert [comment.id for comment in comments] == ["c1"]
+        assert [reply.id for reply in comments[0].replies] == ["r1"]
