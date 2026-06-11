@@ -7,9 +7,8 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from functools import wraps
 from pathlib import Path
-from typing import Callable, Optional, TypeVar
+from typing import Optional
 
 from playwright.sync_api import (
     Browser,
@@ -36,66 +35,7 @@ from forage.parser import (
     parse_modern_comment,
 )
 
-T = TypeVar("T")
-
 console = Console(stderr=True)
-
-
-def retry_with_backoff(
-    max_retries: int = 3,
-    base_delay: float = 1.0,
-    max_delay: float = 30.0,
-    exponential_base: float = 2.0,
-    exceptions: tuple = (PlaywrightTimeoutError, Exception),
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """
-    Decorator for retrying operations with exponential backoff.
-
-    Args:
-        max_retries: Maximum number of retry attempts
-        base_delay: Initial delay in seconds
-        max_delay: Maximum delay between retries
-        exponential_base: Base for exponential backoff calculation
-        exceptions: Tuple of exceptions to catch and retry
-
-    Returns:
-        Decorated function with retry logic
-    """
-
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args, **kwargs) -> T:
-            last_exception = None
-
-            for attempt in range(max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    last_exception = e
-
-                    if attempt == max_retries:
-                        raise
-
-                    # Calculate delay with jitter
-                    delay = min(base_delay * (exponential_base**attempt), max_delay)
-                    # Add random jitter (±25%)
-                    jitter = delay * random.uniform(-0.25, 0.25)
-                    actual_delay = delay + jitter
-
-                    console.print(
-                        f"[yellow]Retry {attempt + 1}/{max_retries}: "
-                        f"waiting {actual_delay:.1f}s after error: {e}[/yellow]"
-                    )
-                    time.sleep(actual_delay)
-
-            # Should never reach here, but satisfy type checker
-            if last_exception is not None:
-                raise last_exception
-            raise RuntimeError("Retry logic error: no exception captured")
-
-        return wrapper
-
-    return decorator
 
 
 def navigate_with_retry(
