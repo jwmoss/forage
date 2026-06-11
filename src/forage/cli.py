@@ -330,7 +330,7 @@ def scrape(
     else:
         json_output = result.model_dump_json(indent=2)
         if output:
-            output.write_text(json_output)
+            output.write_text(json_output, encoding="utf-8")
             if not ctx.quiet:
                 console.print(f"[green]Output written to {output}[/green]")
         else:
