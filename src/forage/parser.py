@@ -33,6 +33,16 @@ def _stable_id(prefix: str, *parts: str) -> str:
     return f"{prefix}_{hasher.hexdigest()[:16]}"
 
 
+def _resolve_yearless(parsed: datetime, now: datetime) -> datetime:
+    """Pick the year for a yearless date: posts can't be from the future."""
+    if parsed <= now:
+        return parsed
+    try:
+        return parsed.replace(year=parsed.year - 1)
+    except ValueError:  # Feb 29 when last year wasn't a leap year
+        return parsed.replace(year=parsed.year - 1, day=28)
+
+
 def _parse_compact_int(text: str) -> int:
     if not text:
         return 0
@@ -153,7 +163,7 @@ def parse_timestamp(text: str) -> Optional[datetime]:
             "%b %d %Y at %I %p",
         ):
             try:
-                return datetime.strptime(candidate, fmt)
+                return _resolve_yearless(datetime.strptime(candidate, fmt), now)
             except ValueError:
                 continue
 
@@ -164,7 +174,7 @@ def parse_timestamp(text: str) -> Optional[datetime]:
         candidate = f"{month} {int(day)} {now.year}"
         for fmt in ("%B %d %Y", "%b %d %Y"):
             try:
-                return datetime.strptime(candidate, fmt)
+                return _resolve_yearless(datetime.strptime(candidate, fmt), now)
             except ValueError:
                 continue
 

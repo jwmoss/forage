@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -156,6 +157,23 @@ class TestParseTimestampEdgeCases:
             result = parse_timestamp(fmt)
             assert result is not None
             assert isinstance(result, datetime)
+
+    def test_yearless_date_in_future_rolls_back_a_year(self) -> None:
+        """Posts can't be from the future: "December 28" scraped in January
+        means last year, otherwise the post is filtered out of every range."""
+
+        class FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 1, 5, 12, 0, 0)
+
+        with patch("forage.parser.datetime", FrozenDatetime):
+            assert parse_timestamp("December 28") == datetime(2025, 12, 28)
+            assert parse_timestamp("December 28 at 3:45 PM") == datetime(
+                2025, 12, 28, 15, 45
+            )
+            # A yearless date already in the past keeps the current year
+            assert parse_timestamp("January 2") == datetime(2026, 1, 2)
 
 
 class TestExtractPostIdEdgeCases:
