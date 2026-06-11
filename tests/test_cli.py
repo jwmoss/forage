@@ -93,6 +93,29 @@ class TestCli:
             assert result.exit_code == 2
             assert "requires --output" in result.output
 
+    def test_scrape_llm_format_passes_flags(self, runner: CliRunner) -> None:
+        """--top-comments and --min-pain-score must reach the LLM export."""
+        with (
+            patch("forage.cli.session_exists", return_value=True),
+            patch("forage.cli.scrape_group", return_value=MagicMock()),
+            patch("forage.exporter.get_llm_json", return_value="{}") as mock_llm,
+        ):
+            result = runner.invoke(
+                main,
+                [
+                    "scrape",
+                    "testgroup",
+                    "-f",
+                    "llm",
+                    "--top-comments",
+                    "5",
+                    "--min-pain-score",
+                    "2",
+                ],
+            )
+        assert result.exit_code == 0
+        assert mock_llm.call_args.kwargs == {"top_comments": 5, "min_pain_score": 2}
+
 
 class TestCliOptions:
     """Tests for CLI option parsing."""

@@ -126,6 +126,12 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
     help="Keep only the top N comments per post by reactions",
 )
 @click.option(
+    "--min-pain-score",
+    type=click.IntRange(min=0),
+    default=0,
+    help="LLM format only: exclude posts with a pain score below N",
+)
+@click.option(
     "--skip-comments",
     is_flag=True,
     help="Skip fetching comments entirely",
@@ -183,6 +189,7 @@ def scrape(
     delay: float,
     min_reactions: int,
     top_comments: int,
+    min_pain_score: int,
     skip_comments: bool,
     skip_reactions: bool,
     output: Optional[Path],
@@ -298,14 +305,28 @@ def scrape(
     elif output_format == "llm":
         from forage.exporter import export_to_llm, get_llm_json
 
+        # --top-comments 0 means "no scrape filter"; keep the format's
+        # default of 3 comments per post in that case.
+        llm_top_comments = top_comments or 3
         if output:
-            export_to_llm(result, output, top_comments=3)
+            export_to_llm(
+                result,
+                output,
+                top_comments=llm_top_comments,
+                min_pain_score=min_pain_score,
+            )
             if not ctx.quiet:
                 console.print(
                     f"[green]LLM-optimized output written to {output}[/green]"
                 )
         else:
-            click.echo(get_llm_json(result, top_comments=3))
+            click.echo(
+                get_llm_json(
+                    result,
+                    top_comments=llm_top_comments,
+                    min_pain_score=min_pain_score,
+                )
+            )
     else:
         json_output = result.model_dump_json(indent=2)
         if output:

@@ -140,26 +140,12 @@ def _post_to_llm_format(post: Post, top_comments: int = 3) -> dict[str, Any]:
     }
 
 
-def export_to_llm(
+def _build_llm_payload(
     result: ScrapeResult,
-    output_path: Path,
     top_comments: int = 3,
     min_pain_score: int = 0,
-) -> None:
-    """Export scrape result to LLM-friendly JSON format.
-
-    This format is optimized for feeding to LLM APIs for analysis:
-    - Strips unnecessary metadata (author URLs, reaction breakdowns)
-    - Adds computed signals (is_question, pain_keywords, pain_score)
-    - Includes only top N comments per post
-    - Provides summary statistics
-
-    Args:
-        result: The scrape result to export
-        output_path: Path to write the JSON file
-        top_comments: Number of top comments to include per post (default: 3)
-        min_pain_score: Minimum pain score to include a post (default: 0)
-    """
+) -> dict[str, Any]:
+    """Build the LLM-friendly payload shared by file and stdout export."""
     posts_data = []
     total_reactions = 0
     total_comments = 0
@@ -183,7 +169,7 @@ def export_to_llm(
         if post_data["signals"]["pain_score"] > 0:
             pain_post_count += 1
 
-    output = {
+    return {
         "metadata": {
             "group_name": result.group.name,
             "group_url": result.group.url,
@@ -203,6 +189,28 @@ def export_to_llm(
         "posts": posts_data,
     }
 
+
+def export_to_llm(
+    result: ScrapeResult,
+    output_path: Path,
+    top_comments: int = 3,
+    min_pain_score: int = 0,
+) -> None:
+    """Export scrape result to LLM-friendly JSON format.
+
+    This format is optimized for feeding to LLM APIs for analysis:
+    - Strips unnecessary metadata (author URLs, reaction breakdowns)
+    - Adds computed signals (is_question, pain_keywords, pain_score)
+    - Includes only top N comments per post
+    - Provides summary statistics
+
+    Args:
+        result: The scrape result to export
+        output_path: Path to write the JSON file
+        top_comments: Number of top comments to include per post (default: 3)
+        min_pain_score: Minimum pain score to include a post (default: 0)
+    """
+    output = _build_llm_payload(result, top_comments, min_pain_score)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
@@ -213,47 +221,7 @@ def get_llm_json(
     min_pain_score: int = 0,
 ) -> str:
     """Get LLM-friendly JSON as a string (for stdout output)."""
-    posts_data = []
-    total_reactions = 0
-    total_comments = 0
-    question_count = 0
-    pain_post_count = 0
-
-    for post in result.posts:
-        post_data = _post_to_llm_format(post, top_comments)
-
-        if post_data["signals"]["pain_score"] < min_pain_score:
-            continue
-
-        posts_data.append(post_data)
-
-        total_reactions += post_data["engagement"]["reactions"]
-        total_comments += post_data["engagement"]["comments"]
-        if post_data["signals"]["is_question"]:
-            question_count += 1
-        if post_data["signals"]["pain_score"] > 0:
-            pain_post_count += 1
-
-    output = {
-        "metadata": {
-            "group_name": result.group.name,
-            "group_url": result.group.url,
-            "scraped_at": result.scraped_at.isoformat() if result.scraped_at else None,
-            "date_range": {
-                "since": result.date_range.since,
-                "until": result.date_range.until,
-            },
-            "stats": {
-                "post_count": len(posts_data),
-                "total_reactions": total_reactions,
-                "total_comments": total_comments,
-                "questions": question_count,
-                "posts_with_pain_signals": pain_post_count,
-            },
-        },
-        "posts": posts_data,
-    }
-
+    output = _build_llm_payload(result, top_comments, min_pain_score)
     return json.dumps(output, indent=2, ensure_ascii=False)
 
 
