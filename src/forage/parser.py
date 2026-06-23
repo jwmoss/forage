@@ -75,7 +75,7 @@ def parse_timestamp(text: str) -> Optional[datetime]:
     if not text:
         return None
 
-    text = text.strip()
+    text = re.sub(r"[\u00a0\u202f]", " ", text).strip()
     if not text:
         return None
 
@@ -127,6 +127,10 @@ def parse_timestamp(text: str) -> Optional[datetime]:
         return now - timedelta(days=1)
 
     date_formats = [
+        "%A, %B %d, %Y at %I:%M %p",
+        "%A, %b %d, %Y at %I:%M %p",
+        "%a, %B %d, %Y at %I:%M %p",
+        "%a, %b %d, %Y at %I:%M %p",
         "%B %d, %Y at %I:%M %p",
         "%b %d, %Y at %I:%M %p",
         "%B %d, %Y",
@@ -178,6 +182,27 @@ def parse_timestamp(text: str) -> Optional[datetime]:
             except ValueError:
                 continue
 
+    return None
+
+
+def _parse_hover_timestamp(link: ElementHandle, page: Page) -> Optional[datetime]:
+    """Read Facebook's exact timestamp tooltip from a relative time link."""
+    try:
+        try:
+            page.mouse.move(0, 0)
+            page.wait_for_timeout(100)
+        except Exception:
+            pass
+        link.hover(timeout=1000)
+        page.wait_for_timeout(500)
+        tooltip = page.wait_for_selector('[role="tooltip"]', timeout=1500)
+        if tooltip:
+            text = tooltip.inner_text().strip()
+            timestamp = parse_timestamp(text)
+            if timestamp:
+                return timestamp
+    except Exception:
+        return None
     return None
 
 
@@ -402,6 +427,15 @@ def parse_modern_post(
             'a[href*="/posts/"], a[href*="?story_fbid"]'
         )
         for link in time_links:
+            href = link.get_attribute("href") or ""
+            if "comment_id=" in href:
+                continue
+
+            tooltip_timestamp = _parse_hover_timestamp(link, page)
+            if tooltip_timestamp:
+                timestamp = tooltip_timestamp
+                break
+
             aria = link.get_attribute("aria-label")
             if aria:
                 timestamp = parse_timestamp(aria)

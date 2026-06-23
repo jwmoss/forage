@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-23
+
+### Fixed
+
+- Date-bounded scrapes now prefer Facebook's exact timestamp tooltip over
+  coarse relative labels like `1d`, so `--days 1` can enforce a real
+  24-hour cutoff.
+- Group scrapes now request Facebook's chronological feed ordering to avoid
+  date windows being skewed by ranked feed order.
+
 ## [1.1.0] - 2026-06-10
 
 ### Fixed
@@ -176,7 +186,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jwmoss/forage/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jwmoss/forage/compare/v1.0.9...v1.1.0
 [1.0.9]: https://github.com/jwmoss/forage/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/jwmoss/forage/compare/v1.0.7...v1.0.8

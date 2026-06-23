@@ -9,6 +9,7 @@ from forage.models import Author, Comment
 from forage.scraper import (
     ScrapeOptions,
     calculate_date_range,
+    get_group_url,
     normalize_group_identifier,
     random_delay,
     scrape_comments_from_post_page,
@@ -44,6 +45,17 @@ class TestNormalizeGroupIdentifier:
     def test_whitespace_trimmed(self) -> None:
         """Test whitespace is trimmed."""
         assert normalize_group_identifier("  mycityfoodies  ") == "mycityfoodies"
+
+
+class TestGetGroupUrl:
+    """Tests for Facebook group URL generation."""
+
+    def test_uses_chronological_sorting(self) -> None:
+        """Date-bounded scrapes should start from newest posts."""
+        assert (
+            get_group_url("mycityfoodies")
+            == "https://www.facebook.com/groups/mycityfoodies?sorting_setting=CHRONOLOGICAL"
+        )
 
 
 class TestCalculateDateRange:

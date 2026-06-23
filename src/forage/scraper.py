@@ -136,7 +136,7 @@ def normalize_group_identifier(group: str) -> str:
 
 def get_group_url(group_id: str) -> str:
     """Get the Facebook URL for a group."""
-    return f"https://www.facebook.com/groups/{group_id}"
+    return f"https://www.facebook.com/groups/{group_id}?sorting_setting=CHRONOLOGICAL"
 
 
 def calculate_date_range(options: ScrapeOptions) -> tuple[datetime, datetime]:

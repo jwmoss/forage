@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,6 +11,7 @@ from forage.models import Comment, Reactions
 from forage.parser import (
     extract_post_id,
     filter_comments,
+    _parse_hover_timestamp,
     parse_modern_comment,
     parse_modern_post,
     parse_reactions_text,
@@ -158,6 +159,11 @@ class TestParseTimestampEdgeCases:
             assert result is not None
             assert isinstance(result, datetime)
 
+    def test_weekday_tooltip_timestamp(self) -> None:
+        """Test Facebook's hover tooltip timestamp format."""
+        result = parse_timestamp("Monday, June 22, 2026 at 3:29\u202fPM")
+        assert result == datetime(2026, 6, 22, 15, 29)
+
     def test_yearless_date_in_future_rolls_back_a_year(self) -> None:
         """Posts can't be from the future: "December 28" scraped in January
         means last year, otherwise the post is filtered out of every range."""
@@ -174,6 +180,26 @@ class TestParseTimestampEdgeCases:
             )
             # A yearless date already in the past keeps the current year
             assert parse_timestamp("January 2") == datetime(2026, 1, 2)
+
+
+class TestHoverTimestamp:
+    """Tests for exact Facebook timestamp tooltips."""
+
+    def test_parse_hover_timestamp(self) -> None:
+        link = MagicMock()
+        tooltip = MagicMock()
+        page = MagicMock()
+        page.wait_for_selector.return_value = tooltip
+        tooltip.inner_text.return_value = "Monday, June 22, 2026 at 3:29\u202fPM"
+
+        result = _parse_hover_timestamp(link, page)
+
+        assert result == datetime(2026, 6, 22, 15, 29)
+        page.mouse.move.assert_called_once_with(0, 0)
+        page.wait_for_timeout.assert_any_call(100)
+        page.wait_for_timeout.assert_any_call(500)
+        link.hover.assert_called_once_with(timeout=1000)
+        page.wait_for_selector.assert_called_once_with('[role="tooltip"]', timeout=1500)
 
 
 class TestExtractPostIdEdgeCases:
