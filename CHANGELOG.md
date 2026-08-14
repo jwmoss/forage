@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Ruff's existing lint selection is now explicit so unpinned CI upgrades cannot
   silently redefine the repository's lint scope.
+- The build backend is constrained to Hatchling before 1.32 so release artifacts
+  use Core Metadata 2.4, which is accepted by the pinned PyPI publisher.
 
 ## [1.2.0] - 2026-06-23
 
