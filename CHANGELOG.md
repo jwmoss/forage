@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Busy group scrapes no longer time out from hovering every post's timestamp;
+  visible timestamp metadata is parsed directly without a browser interaction.
+
 ## [1.2.0] - 2026-06-23
 
 ### Fixed
