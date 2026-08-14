@@ -185,24 +185,27 @@ def parse_timestamp(text: str) -> Optional[datetime]:
     return None
 
 
-def _parse_hover_timestamp(link: ElementHandle, page: Page) -> Optional[datetime]:
-    """Read Facebook's exact timestamp tooltip from a relative time link."""
-    try:
-        try:
-            page.mouse.move(0, 0)
-            page.wait_for_timeout(100)
-        except Exception:
-            pass
-        link.hover(timeout=1000)
-        page.wait_for_timeout(500)
-        tooltip = page.wait_for_selector('[role="tooltip"]', timeout=1500)
-        if tooltip:
-            text = tooltip.inner_text().strip()
-            timestamp = parse_timestamp(text)
-            if timestamp:
-                return timestamp
-    except Exception:
-        return None
+def _parse_post_timestamp(links: list[ElementHandle]) -> Optional[datetime]:
+    """Parse a post timestamp from the link's visible metadata.
+
+    Hovering a timestamp link adds roughly one second per post, which makes busy
+    groups time out before the scraper reaches the requested date boundary.
+    Facebook exposes the relative timestamp in the link's aria-label and text,
+    so prefer those values and avoid a browser interaction entirely.
+    """
+    for link in links:
+        href = link.get_attribute("href") or ""
+        if "comment_id=" in href:
+            continue
+
+        aria_timestamp = parse_timestamp(link.get_attribute("aria-label") or "")
+        text_timestamp = parse_timestamp(link.inner_text().strip())
+        fallback_timestamp = aria_timestamp or text_timestamp
+        if fallback_timestamp is None:
+            continue
+
+        return fallback_timestamp
+
     return None
 
 
@@ -422,33 +425,10 @@ def parse_modern_post(
             content = "\n".join(filtered_lines[:3])
 
         # Find timestamp - look for aria-label with time info or links with timestamps
-        timestamp = None
         time_links = article.query_selector_all(
             'a[href*="/posts/"], a[href*="?story_fbid"]'
         )
-        for link in time_links:
-            href = link.get_attribute("href") or ""
-            if "comment_id=" in href:
-                continue
-
-            tooltip_timestamp = _parse_hover_timestamp(link, page)
-            if tooltip_timestamp:
-                timestamp = tooltip_timestamp
-                break
-
-            aria = link.get_attribute("aria-label")
-            if aria:
-                timestamp = parse_timestamp(aria)
-                if timestamp:
-                    break
-            link_text = link.inner_text().strip()
-            if link_text and any(
-                t in link_text.lower()
-                for t in ["h", "d", "w", "min", "yesterday", "just now"]
-            ):
-                timestamp = parse_timestamp(link_text)
-                if timestamp:
-                    break
+        timestamp = _parse_post_timestamp(time_links)
 
         # Extract post ID and permalink from any post link
         post_id = None
