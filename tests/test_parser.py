@@ -11,7 +11,7 @@ from forage.models import Comment, Reactions
 from forage.parser import (
     extract_post_id,
     filter_comments,
-    _parse_hover_timestamp,
+    _parse_post_timestamp,
     parse_modern_comment,
     parse_modern_post,
     parse_reactions_text,
@@ -182,24 +182,51 @@ class TestParseTimestampEdgeCases:
             assert parse_timestamp("January 2") == datetime(2026, 1, 2)
 
 
-class TestHoverTimestamp:
-    """Tests for exact Facebook timestamp tooltips."""
+class TestPostTimestamp:
+    """Tests for post timestamp links."""
 
-    def test_parse_hover_timestamp(self) -> None:
-        link = MagicMock()
-        tooltip = MagicMock()
-        page = MagicMock()
-        page.wait_for_selector.return_value = tooltip
-        tooltip.inner_text.return_value = "Monday, June 22, 2026 at 3:29\u202fPM"
+    def test_skips_non_timestamp_permalink_without_hovering(self) -> None:
+        shared_post_link = MagicMock()
+        shared_post_link.get_attribute.side_effect = lambda name: {
+            "href": "https://www.facebook.com/groups/123/posts/999",
+            "aria-label": None,
+        }.get(name)
+        shared_post_link.inner_text.return_value = "Shared article headline"
 
-        result = _parse_hover_timestamp(link, page)
+        timestamp_link = MagicMock()
+        timestamp_link.get_attribute.side_effect = lambda name: {
+            "href": "https://www.facebook.com/groups/123/posts/456",
+            "aria-label": "2h",
+        }.get(name)
+        timestamp_link.inner_text.return_value = "2h"
 
-        assert result == datetime(2026, 6, 22, 15, 29)
-        page.mouse.move.assert_called_once_with(0, 0)
-        page.wait_for_timeout.assert_any_call(100)
-        page.wait_for_timeout.assert_any_call(500)
-        link.hover.assert_called_once_with(timeout=1000)
-        page.wait_for_selector.assert_called_once_with('[role="tooltip"]', timeout=1500)
+        result = _parse_post_timestamp([shared_post_link, timestamp_link])
+
+        assert result is not None
+        assert timedelta(hours=1, minutes=59) <= datetime.now() - result
+        assert datetime.now() - result <= timedelta(hours=2, minutes=1)
+        timestamp_link.hover.assert_not_called()
+
+    def test_skips_comment_permalink(self) -> None:
+        comment_link = MagicMock()
+        comment_link.get_attribute.side_effect = lambda name: {
+            "href": "https://www.facebook.com/groups/123/posts/456?comment_id=789",
+            "aria-label": "1h",
+        }.get(name)
+        comment_link.inner_text.return_value = "1h"
+
+        timestamp_link = MagicMock()
+        timestamp_link.get_attribute.side_effect = lambda name: {
+            "href": "https://www.facebook.com/groups/123/posts/456",
+            "aria-label": "2h",
+        }.get(name)
+        timestamp_link.inner_text.return_value = "2h"
+
+        result = _parse_post_timestamp([comment_link, timestamp_link])
+
+        assert result is not None
+        assert timedelta(hours=1, minutes=59) <= datetime.now() - result
+        assert datetime.now() - result <= timedelta(hours=2, minutes=1)
 
 
 class TestExtractPostIdEdgeCases:
