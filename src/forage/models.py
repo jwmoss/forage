@@ -51,6 +51,26 @@ class Post(BaseModel):
     comments: list[Comment] = Field(default_factory=list)
 
 
+class MarketplaceListing(BaseModel):
+    """A Facebook Marketplace search-result listing."""
+
+    id: str
+    url: str
+    title: str
+    price: Optional[str] = None
+    location: Optional[str] = None
+
+
+class MarketplaceResult(BaseModel):
+    """Complete result of a Marketplace search scrape."""
+
+    query: str
+    city: str
+    search_url: str
+    scraped_at: datetime
+    listings: list[MarketplaceListing] = Field(default_factory=list)
+
+
 class GroupInfo(BaseModel):
     """Information about a Facebook group."""
 

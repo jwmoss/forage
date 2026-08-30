@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import re
 import time
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
 
 from playwright.sync_api import (
     Browser,
@@ -26,16 +28,24 @@ from forage.models import (
     Comment,
     DateRange,
     GroupInfo,
+    MarketplaceListing,
+    MarketplaceResult,
     Post,
     ScrapeResult,
 )
 from forage.parser import (
     filter_comments,
+    parse_marketplace_listing,
     parse_modern_post,
     parse_modern_comment,
 )
 
 console = Console(stderr=True)
+
+MARKETPLACE_CENTER_PATTERN = re.compile(
+    r'"buyLocation"\s*:\s*\{\s*"latitude"\s*:\s*(-?\d+(?:\.\d+)?),'
+    r'\s*"longitude"\s*:\s*(-?\d+(?:\.\d+)?)'
+)
 
 
 def navigate_with_retry(
@@ -96,6 +106,19 @@ class ScrapeOptions:
     browser_type: str = "chromium"
 
 
+@dataclass
+class MarketplaceOptions:
+    """Options for a Facebook Marketplace search."""
+
+    city: str = "wilmington"
+    radius: int = 40
+    limit: int = 20
+    headless: bool = True
+    verbose: bool = False
+    session_dir: Optional[Path] = None
+    browser_type: str = "chromium"
+
+
 def random_delay(base: float = 1.0, variance: float = 0.5) -> float:
     """Generate a random delay to simulate human behavior."""
     return base + random.uniform(-variance, variance)
@@ -137,6 +160,66 @@ def normalize_group_identifier(group: str) -> str:
 def get_group_url(group_id: str) -> str:
     """Get the Facebook URL for a group."""
     return f"https://www.facebook.com/groups/{group_id}?sorting_setting=CHRONOLOGICAL"
+
+
+def get_marketplace_url(query: str, city: str, radius: int) -> str:
+    """Build a newest-first Marketplace electronics search URL."""
+    city_slug = city.strip().strip("/")
+    params = urlencode(
+        {
+            "query": query,
+            "radius": radius,
+            "sortBy": "creation_time_descend",
+            "category": "electronics",
+        }
+    )
+    return f"https://www.facebook.com/marketplace/{city_slug}/search/?{params}"
+
+
+def _marketplace_center(html: str) -> Optional[tuple[float, float]]:
+    match = MARKETPLACE_CENTER_PATTERN.search(html)
+    if not match:
+        return None
+    return float(match.group(1)), float(match.group(2))
+
+
+def _marketplace_listing_within_radius(
+    html: str,
+    center: tuple[float, float],
+    radius: int,
+) -> bool:
+    pattern = re.compile(
+        r'"location"\s*:\s*\{\s*"latitude"\s*:\s*(-?\d+(?:\.\d+)?),'
+        r'\s*"longitude"\s*:\s*(-?\d+(?:\.\d+)?)',
+    )
+    match = pattern.search(html)
+    if not match:
+        return False
+
+    destination = float(match.group(1)), float(match.group(2))
+    lat1, lon1, lat2, lon2 = map(math.radians, (*center, *destination))
+    latitude = math.sin((lat2 - lat1) / 2) ** 2
+    longitude = math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    return 2 * 3958.8 * math.asin(math.sqrt(latitude + longitude)) <= radius
+
+
+def _listing_matches_radius(
+    page: Page,
+    listing: MarketplaceListing,
+    center: tuple[float, float],
+    radius: int,
+    verbose: bool,
+) -> bool:
+    try:
+        navigate_with_retry(page, listing.url, max_retries=1, verbose=verbose)
+        return _marketplace_listing_within_radius(page.content(), center, radius)
+    except Exception as error:
+        if verbose:
+            console.print(
+                f"[yellow]Warning: cannot verify location for {listing.id}: "
+                f"{error}[/yellow]"
+            )
+        return False
 
 
 def calculate_date_range(options: ScrapeOptions) -> tuple[datetime, datetime]:
@@ -689,6 +772,72 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
             until=until_date.strftime("%Y-%m-%d"),
         ),
         posts=posts,
+    )
+
+
+def search_marketplace(
+    query: str,
+    options: MarketplaceOptions,
+) -> MarketplaceResult:
+    """Search Facebook Marketplace for electronics listings."""
+    search_url = get_marketplace_url(query, options.city, options.radius)
+    listings: list[MarketplaceListing] = []
+    seen_ids: set[str] = set()
+
+    with sync_playwright() as playwright:
+        browser = getattr(playwright, options.browser_type).launch(
+            headless=options.headless
+        )
+        context = create_browser_context(browser, options.session_dir)
+        page = context.new_page()
+        width, height = random.choice(VIEWPORT_SIZES)
+        page.set_viewport_size({"width": width, "height": height})
+        navigate_with_retry(page, search_url, verbose=options.verbose)
+        page.wait_for_selector('a[href*="/marketplace/item/"]', timeout=10000)
+
+        if not is_logged_in_page(page, navigate=False):
+            browser.close()
+            raise AuthenticationError("Not logged in or session expired")
+
+        center = _marketplace_center(page.content())
+        if center is None:
+            raise RuntimeError(
+                "Facebook did not provide the Marketplace search location"
+            )
+
+        detail_page = context.new_page()
+        empty_scrolls = 0
+        while len(seen_ids) < options.limit and empty_scrolls < 3:
+            previous_count = len(seen_ids)
+            for element in page.query_selector_all('a[href*="/marketplace/item/"]'):
+                listing = parse_marketplace_listing(element, verbose=options.verbose)
+                if listing and listing.id not in seen_ids:
+                    seen_ids.add(listing.id)
+                    if _listing_matches_radius(
+                        detail_page,
+                        listing,
+                        center,
+                        options.radius,
+                        options.verbose,
+                    ):
+                        listings.append(listing)
+                    if len(seen_ids) >= options.limit:
+                        break
+
+            empty_scrolls = empty_scrolls + 1 if len(seen_ids) == previous_count else 0
+            if len(seen_ids) < options.limit:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                page.wait_for_timeout(2000)
+
+        detail_page.close()
+        browser.close()
+
+    return MarketplaceResult(
+        query=query,
+        city=options.city,
+        search_url=search_url,
+        scraped_at=datetime.now(),
+        listings=listings,
     )
 
 

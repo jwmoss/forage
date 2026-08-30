@@ -6,12 +6,18 @@ import hashlib
 import re
 from datetime import datetime, timedelta
 from typing import Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from playwright.sync_api import ElementHandle, Page
 from rich.console import Console
 
-from forage.models import Author, Comment, Post, Reactions
+from forage.models import (
+    Author,
+    Comment,
+    MarketplaceListing,
+    Post,
+    Reactions,
+)
 
 console = Console(stderr=True)
 
@@ -640,6 +646,50 @@ def parse_modern_comment(
 
     except Exception as e:
         _warn_parse_failure("comment", e, verbose=verbose)
+        return None
+
+
+def parse_marketplace_listing(
+    element: ElementHandle,
+    *,
+    verbose: bool = False,
+) -> Optional[MarketplaceListing]:
+    """Parse a listing from a Facebook Marketplace search result."""
+    try:
+        href = element.get_attribute("href") or ""
+        item_match = re.search(r"/marketplace/item/(\d+)", href)
+        if not item_match:
+            return None
+
+        lines = [
+            line.strip() for line in element.inner_text().splitlines() if line.strip()
+        ]
+        price_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line.lower() == "free" or line.startswith("$")
+            ),
+            None,
+        )
+        if price_index is None or price_index + 1 >= len(lines):
+            return None
+
+        details = lines[price_index + 1 :]
+        while details and details[0].startswith("$"):
+            details.pop(0)
+        if not details:
+            return None
+
+        return MarketplaceListing(
+            id=item_match.group(1),
+            url=urljoin("https://www.facebook.com", href).split("?", 1)[0],
+            title=details[0],
+            price=lines[price_index],
+            location=details[-1] if len(details) > 1 else None,
+        )
+    except Exception as error:
+        _warn_parse_failure("Marketplace listing", error, verbose=verbose)
         return None
 
 

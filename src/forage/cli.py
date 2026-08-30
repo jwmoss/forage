@@ -17,8 +17,10 @@ from forage.auth import (
 from forage.scraper import (
     AuthenticationError,
     GroupNotFoundError,
+    MarketplaceOptions,
     ScrapeOptions,
     scrape_group,
+    search_marketplace,
 )
 
 console = Console(stderr=True)
@@ -79,6 +81,74 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
         if not ctx.quiet:
             console.print(f"[red]Login failed: {e}[/red]")
         raise SystemExit(1)
+
+
+@main.command()
+@click.argument("query")
+@click.option("--city", default="wilmington", help="Marketplace city slug")
+@click.option(
+    "--radius",
+    type=click.Choice(["1", "2", "5", "10", "20", "40", "60", "80", "100"]),
+    default="40",
+    help="Search radius in miles",
+)
+@click.option(
+    "--limit",
+    type=click.IntRange(min=1),
+    default=20,
+    help="Maximum number of listings to fetch",
+)
+@click.option("-o", "--output", type=click.Path(path_type=Path), default=None)
+@click.option("--session-dir", type=click.Path(path_type=Path), default=None)
+@click.option("--headless/--no-headless", default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+)
+@pass_context
+def marketplace(
+    ctx: Context,
+    query: str,
+    *,
+    city: str,
+    radius: str,
+    limit: int,
+    output: Optional[Path],
+    session_dir: Optional[Path],
+    headless: bool,
+    browser: str,
+) -> None:
+    """Search Marketplace electronics listings, newest first."""
+    if not session_exists(session_dir):
+        console.print("[red]Please run 'forage login' first.[/red]")
+        raise SystemExit(3)
+
+    options = MarketplaceOptions(
+        city=city,
+        radius=int(radius),
+        limit=limit,
+        headless=headless,
+        verbose=ctx.verbose,
+        session_dir=session_dir,
+        browser_type=browser,
+    )
+    try:
+        result = search_marketplace(query, options)
+    except AuthenticationError:
+        console.print("[red]Please run 'forage login' to refresh your session.[/red]")
+        raise SystemExit(3)
+    except Exception as error:
+        console.print(f"[red]Error: {error}[/red]")
+        raise SystemExit(1)
+
+    json_output = result.model_dump_json(indent=2)
+    if output:
+        output.write_text(json_output, encoding="utf-8")
+        if not ctx.quiet:
+            console.print(f"[green]Output written to {output}[/green]")
+    else:
+        click.echo(json_output)
 
 
 @main.command()
