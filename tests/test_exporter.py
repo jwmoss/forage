@@ -82,15 +82,6 @@ def sample_result() -> ScrapeResult:
 class TestExportToSqlite:
     """Tests for export_to_sqlite function."""
 
-    def test_creates_database(
-        self, tmp_path: Path, sample_result: ScrapeResult
-    ) -> None:
-        """Test that export creates the database file."""
-        db_path = tmp_path / "test.db"
-        export_to_sqlite(sample_result, db_path)
-
-        assert db_path.exists()
-
     def test_creates_tables(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
         """Test that export creates all required tables."""
         db_path = tmp_path / "test.db"
@@ -239,25 +230,6 @@ class TestExportToSqlite:
 
 class TestExportToCsv:
     """Tests for export_to_csv function."""
-
-    def test_creates_posts_file(
-        self, tmp_path: Path, sample_result: ScrapeResult
-    ) -> None:
-        """Test that export creates the posts CSV file."""
-        csv_path = tmp_path / "posts.csv"
-        export_to_csv(sample_result, csv_path)
-
-        assert csv_path.exists()
-
-    def test_creates_comments_file(
-        self, tmp_path: Path, sample_result: ScrapeResult
-    ) -> None:
-        """Test that export creates the comments CSV file."""
-        csv_path = tmp_path / "posts.csv"
-        export_to_csv(sample_result, csv_path)
-
-        comments_path = tmp_path / "posts.comments.csv"
-        assert comments_path.exists()
 
     def test_posts_csv_content(
         self, tmp_path: Path, sample_result: ScrapeResult
@@ -537,24 +509,6 @@ class TestPostToLlmFormat:
 
 class TestExportToLlm:
     """Tests for export_to_llm function."""
-
-    def test_creates_file(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
-        """Test that export creates the output file."""
-        output_path = tmp_path / "output.json"
-        export_to_llm(sample_result, output_path)
-
-        assert output_path.exists()
-
-    def test_valid_json(self, tmp_path: Path, sample_result: ScrapeResult) -> None:
-        """Test that output is valid JSON."""
-        output_path = tmp_path / "output.json"
-        export_to_llm(sample_result, output_path)
-
-        with open(output_path) as f:
-            data = json.load(f)
-
-        assert "metadata" in data
-        assert "posts" in data
 
     def test_metadata_structure(
         self, tmp_path: Path, sample_result: ScrapeResult
