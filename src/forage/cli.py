@@ -162,7 +162,10 @@ def marketplace(
 
     json_output = result.model_dump_json(indent=2)
     if output:
-        output.write_text(json_output, encoding="utf-8")
+        try:
+            output.write_text(json_output, encoding="utf-8")
+        except OSError as error:
+            raise click.ClickException(str(error)) from error
         if not ctx.quiet:
             console.print(f"[green]Output written to {output}[/green]")
     else:
@@ -493,7 +496,7 @@ def export_saved(
             top_comments=top_comments,
             min_pain_score=min_pain_score,
         )
-    except ValidationError as error:
+    except (ValidationError, UnicodeDecodeError) as error:
         raise click.ClickException("Input is not a group scrape JSON result") from error
     except (OSError, sqlite3.Error) as error:
         raise click.ClickException(str(error)) from error

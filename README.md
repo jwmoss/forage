@@ -289,7 +289,13 @@ uv run playwright install chromium
 
 # Run tests; browser fixtures block network access
 uv run pytest
+
+# CLI flow tests (Node 22.12 or newer)
+npm ci --ignore-scripts
+npm run test:e2e
 ```
+
+See [the CLI flow coverage matrix](tests/e2e/README.md) for fixture checks and live Facebook limits.
 
 ## Architecture
 

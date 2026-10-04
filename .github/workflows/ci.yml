@@ -35,6 +35,18 @@ jobs:
       - run: uv sync --locked --all-extras --no-config
       - run: uv run --locked --no-config playwright install --with-deps chromium
       - run: uv run --locked --no-config pytest tests/ -q
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        if: matrix.python-version == '3.14'
+        with:
+          node-version: '26.10.0'
+          cache: npm
+      - name: CLI end-to-end flows
+        if: matrix.python-version == '3.14'
+        env:
+          DO_NOT_TRACK: '1'
+        run: |
+          npm ci --ignore-scripts
+          xvfb-run -a npm run test:e2e
 
   quality:
     runs-on: ubuntu-latest
