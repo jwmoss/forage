@@ -60,3 +60,8 @@ output/
 .env
 .env.local
 .env.*.local
+
+# CLI end-to-end runner
+/node_modules/
+/.e2e/
+!package-lock.json

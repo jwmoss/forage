@@ -26,3 +26,13 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]
