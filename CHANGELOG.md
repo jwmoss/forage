@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-10
+
+### Changed
+
+- Replace unit and synthetic browser tests with read-only live CLI checks.
+- Keep lint, type checks, and package build/install checks in CI.
+- Remove pytest and the Node test harness.
+- Add common `make check`, `make test`, and `make build` entry points.
+- Add `forage version` beside the existing `--version` flag.
+
 ## [2.1.0] - 2026-09-20
 
 ### Fixed
@@ -237,7 +247,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/jwmoss/forage/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jwmoss/forage/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jwmoss/forage/compare/v1.2.1...v2.0.0
 [1.2.1]: https://github.com/jwmoss/forage/compare/v1.2.0...v1.2.1

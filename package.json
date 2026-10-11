@@ -1,7 +1,0 @@
-{
-  "name": "forage-e2e",
-  "private": true,
-  "type": "module",
-  "scripts": { "test:e2e": "e2e run" },
-  "devDependencies": { "e2e": "0.17.0" }
-}

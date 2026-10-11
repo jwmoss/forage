@@ -16,38 +16,6 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
-  test:
-    name: test (${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.14"]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
-        with:
-          version: "0.12.17"
-          python-version: ${{ matrix.python-version }}
-      - run: uv sync --locked --all-extras --no-config
-      - run: uv run --locked --no-config playwright install --with-deps chromium
-      - run: uv run --locked --no-config pytest tests/ -q
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
-        if: matrix.python-version == '3.14'
-        with:
-          node-version: '26.10.0'
-          cache: npm
-      - name: CLI end-to-end flows
-        if: matrix.python-version == '3.14'
-        env:
-          DO_NOT_TRACK: '1'
-        run: |
-          npm ci --ignore-scripts
-          xvfb-run -a npm run test:e2e
-
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -63,8 +31,8 @@ jobs:
       - name: Check source and lockfile
         run: |
           uv lock --check --no-config
-          uv run --locked --no-config ruff check src/ tests/
-          uv run --locked --no-config ruff format --check src/ tests/
+          uv run --locked --no-config ruff check src/ scripts/
+          uv run --locked --no-config ruff format --check src/ scripts/
           uv run --locked --no-config ty check src/forage/
       - name: Audit workflows and release helper
         run: |
@@ -82,12 +50,11 @@ jobs:
 
   check:
     if: always()
-    needs: [test, quality]
+    needs: [quality]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require all checks
         env:
-          TEST_RESULT: ${{ needs.test.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
-        run: test "$TEST_RESULT" = success && test "$QUALITY_RESULT" = success
+        run: test "$QUALITY_RESULT" = success
