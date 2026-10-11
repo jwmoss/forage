@@ -1,3 +1,3 @@
 """Forage: CLI tool to scrape private Facebook groups."""
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
