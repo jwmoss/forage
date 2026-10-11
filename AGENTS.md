@@ -12,11 +12,10 @@ Forage is a CLI tool for scraping private Facebook groups to analyze community d
 uv sync                              # Install deps (always use uv, not pip/python)
 uv run forage --help                 # Run CLI
 uv run ty check src/                 # Type check (Astral's ty)
-uv run pytest                        # Run all tests
-uv run pytest tests/test_parser.py   # Run a single test file
-uv run pytest -k "test_name"         # Run a single test by name
-uv run ruff check src/ tests/        # Lint
-uv run ruff format src/ tests/       # Auto-format (CI enforces this)
+make check                           # Lint, type check, and build
+make test                            # Read-only live Facebook checks
+uv run ruff check src/ scripts/       # Lint
+uv run ruff format src/ scripts/      # Format
 ```
 
 ## Manual Testing
@@ -59,7 +58,10 @@ Random viewport sizes, `human_delay()` with variance, real Chromium browser, ses
 
 ### Test Structure
 
-Tests in `tests/` with HTML fixtures in `tests/fixtures/` (realistic Facebook HTML snippets). `conftest.py` loads fixtures into real Playwright Chromium pages with network access blocked. Install Chromium before tests.
+Use `make test` for real CLI reads through the saved Facebook session. Install Chromium first.
+Set `FORAGE_E2E_GROUP` to test a group; otherwise the test searches Marketplace for computers.
+Keep unit tests, mock tests, and fake-server suites out of this repo. CI runs static checks and package builds.
+Live tests must not log in, change credentials, or write to Facebook.
 
 ## Fragile Code — Check Here First When Things Break
 
@@ -99,7 +101,7 @@ Steps:
 1. Update `version` in both `pyproject.toml` and `src/forage/__init__.py`
 2. Run `uv lock --no-config` — refresh locked editable package metadata without leaking user-level uv settings
 3. Update `CHANGELOG.md` — add version section under `## [Unreleased]`, update comparison links at bottom
-4. Run `uv lock --check --no-config` and `uv run ruff format src/ tests/` — CI enforces formatting
+4. Run `uv lock --check --no-config` and `uv run ruff format src/ scripts/` — CI enforces formatting
 5. Commit: `git commit -m "chore: release vX.Y.Z"`
 6. Push a feature branch and open a PR. Merge only after all required checks pass. Never push directly to `master`.
 7. Tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"` then `git push origin vX.Y.Z`

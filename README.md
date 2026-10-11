@@ -284,18 +284,22 @@ uv sync --extra dev
 # Run type checker
 uv run ty check src/
 
-# Install Chromium for offline DOM tests
+# Run static checks and build the package
+make check
+
+# Install Chromium for live reads
 uv run playwright install chromium
 
-# Run tests; browser fixtures block network access
-uv run pytest
+# Read Marketplace through the saved Facebook session
+make test
 
-# CLI flow tests (Node 22.12 or newer)
-npm ci --ignore-scripts
-npm run test:e2e
+# Read one post from a group you can access
+FORAGE_E2E_GROUP=your-group-slug make test
 ```
 
-See [the CLI flow coverage matrix](tests/e2e/README.md) for fixture checks and live Facebook limits.
+Live tests run the real CLI and Facebook pages. They do not use fixtures or mock servers.
+They need an existing login session. CI runs static checks and package build/install checks.
+
 
 ## Architecture
 
@@ -315,7 +319,7 @@ src/forage/
 - Rate limiting may require slower scraping
 - Individual reaction types not broken out (only total)
 - Session lifetime depends on Facebook; use `forage login` when authentication fails
-- English page labels and supported DOM fixtures define the tested parser scope
+- English page labels define the supported parser scope
 - Previously overwritten SQLite comments require a new scrape; upgrades cannot recover them
 
 ## Roadmap

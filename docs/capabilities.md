@@ -34,4 +34,4 @@ The current audit cannot retrieve that page or current [Marketplace documentatio
 Current replacement availability and exhaustive REST coverage therefore remain unknown. Do not infer private APIs from DOM fields.
 
 All new selector checks use synthetic, network-blocked Chromium pages. No live authenticated Facebook session validates this change.
-Use sanitized fixtures from a confirmed failure before changing selectors. Never publish session state or private group content in test fixtures.
+Verify selector changes through read-only live CLI requests. Never publish session state or private group content.

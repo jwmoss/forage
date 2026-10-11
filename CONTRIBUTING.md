@@ -22,7 +22,8 @@ Thank you for your interest in contributing to Forage!
 
 4. Run tests:
    ```bash
-   uv run pytest tests/ -v
+   make check
+   make test
    ```
 
 5. Run type checker:
@@ -55,15 +56,16 @@ Example: `feat: add SQLite export option`
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feat/my-feature`)
 3. Make your changes
-4. Ensure tests pass (`uv run pytest tests/`)
+4. Ensure tests pass (`make check`; run `make test` with a saved session)
 5. Ensure type checking passes (`uv run ty check src/forage/`)
 6. Commit with a descriptive message
 7. Push and open a pull request
 
 ## Testing
 
-- Write tests for new functionality
-- Use pytest fixtures for common test data
+- Verify behavior through the real CLI against Facebook.
+- Keep live checks read-only and use the existing session.
+- Do not add unit tests, mock tests, or fake-server suites.
 - Mock external dependencies (Playwright, network)
 - Aim for good coverage of edge cases
 

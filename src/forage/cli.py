@@ -62,6 +62,12 @@ def main(ctx: Context, verbose: bool, quiet: bool, no_color: bool):
 
 
 @main.command()
+def version() -> None:
+    """Print version information."""
+    click.echo(f"forage, version {__version__}")
+
+
+@main.command()
 @click.option(
     "--browser",
     type=click.Choice(["chromium", "firefox", "webkit"]),
