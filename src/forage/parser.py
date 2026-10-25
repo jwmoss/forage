@@ -19,8 +19,13 @@ from forage.models import (
     Reactions,
 )
 
-console = Console(stderr=True)
+# Matches "Free" or a price like $200, CA$200, £150, €80, AU$300, etc.
+_PRICE_RE = re.compile(
+    r"^(?:free|(?:[A-Z]{2,3})?[$£€¥₹₩₽]\s*[\d,.]+)$",
+    re.IGNORECASE,
+)
 
+console = Console(stderr=True)
 
 def _warn_parse_failure(kind: str, error: Exception, *, verbose: bool) -> None:
     """Surface a parse exception instead of silently dropping the element."""
@@ -662,7 +667,7 @@ def parse_marketplace_listing(
             (
                 index
                 for index, line in enumerate(lines)
-                if line.lower() == "free" or line.startswith("$")
+                if _PRICE_RE.match(line.strip())
             ),
             None,
         )
@@ -670,7 +675,7 @@ def parse_marketplace_listing(
             return None
 
         details = lines[price_index + 1 :]
-        while details and details[0].startswith("$"):
+        while details and _PRICE_RE.match(details[0]):
             details.pop(0)
         if not details:
             return None
