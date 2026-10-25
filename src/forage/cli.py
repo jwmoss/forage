@@ -120,6 +120,23 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
     show_default=True,
     help="Stop after this many candidates, including radius exclusions",
 )
+@click.option(
+    "--sort-by",
+    type=click.Choice(
+        [
+            "suggested",
+            "creation_time_descend",
+            "creation_time_ascend",
+            "price_ascend",
+            "price_descend",
+            "distance",
+        ],
+        case_sensitive=False,
+    ),
+    default="suggested",
+    show_default=True,
+    help="Marketplace result sort order",
+)
 @click.option("-o", "--output", type=click.Path(path_type=Path), default=None)
 @click.option("--session-dir", type=click.Path(path_type=Path), default=None)
 @click.option("--headless/--no-headless", default=True)
@@ -130,17 +147,18 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
 )
 @pass_context
 def marketplace(
-    ctx: Context,
-    query: str,
-    *,
-    city: str,
-    radius: str,
-    limit: int,
-    max_candidates: int,
-    output: Optional[Path],
-    session_dir: Optional[Path],
-    headless: bool,
-    browser: str,
+        ctx: Context,
+        query: str,
+        *,
+        city: str,
+        radius: str,
+        limit: int,
+        max_candidates: int,
+        sort_by: str,
+        output: Optional[Path],
+        session_dir: Optional[Path],
+        headless: bool,
+        browser: str,
 ) -> None:
     """Search Marketplace electronics listings, newest first."""
     if not session_exists(session_dir):
@@ -156,6 +174,7 @@ def marketplace(
         verbose=ctx.verbose,
         session_dir=session_dir,
         browser_type=browser,
+        sort_by=sort_by
     )
     try:
         result = search_marketplace(query, options)
@@ -277,24 +296,24 @@ def marketplace(
 )
 @pass_context
 def scrape(
-    ctx: Context,
-    group: str,
-    days: int,
-    since: Optional[str],
-    until: Optional[str],
-    limit: int,
-    delay: float,
-    min_reactions: int,
-    top_comments: int,
-    min_pain_score: int,
-    skip_comments: bool,
-    skip_reactions: bool,
-    output: Optional[Path],
-    output_format: str,
-    session_dir: Optional[Path],
-    headless: bool,
-    browser: str,
-    no_input: bool,
+        ctx: Context,
+        group: str,
+        days: int,
+        since: Optional[str],
+        until: Optional[str],
+        limit: int,
+        delay: float,
+        min_reactions: int,
+        top_comments: int,
+        min_pain_score: int,
+        skip_comments: bool,
+        skip_reactions: bool,
+        output: Optional[Path],
+        output_format: str,
+        session_dir: Optional[Path],
+        headless: bool,
+        browser: str,
+        no_input: bool,
 ):
     """
     Scrape posts from a Facebook group.
@@ -402,13 +421,13 @@ def scrape(
 
 
 def _write_result(
-    result: ScrapeResult,
-    output_format: str,
-    output: Optional[Path],
-    *,
-    quiet: bool = False,
-    top_comments: int = 0,
-    min_pain_score: int = 0,
+        result: ScrapeResult,
+        output_format: str,
+        output: Optional[Path],
+        *,
+        quiet: bool = False,
+        top_comments: int = 0,
+        min_pain_score: int = 0,
 ) -> None:
     """Use the same exporters for live and saved results."""
     if output_format == "sqlite":
@@ -480,12 +499,12 @@ def _write_result(
 @click.option("--min-pain-score", type=click.IntRange(min=0), default=0)
 @pass_context
 def export_saved(
-    ctx: Context,
-    source: Path,
-    output_format: str,
-    output: Optional[Path],
-    top_comments: int,
-    min_pain_score: int,
+        ctx: Context,
+        source: Path,
+        output_format: str,
+        output: Optional[Path],
+        top_comments: int,
+        min_pain_score: int,
 ) -> None:
     """Convert a saved group JSON result without a Facebook session."""
     if output_format in {"sqlite", "csv"} and output is None:
@@ -522,8 +541,8 @@ def doctor(session_dir: Optional[Path], browser: str) -> None:
     private = None
     if exists and os.name == "posix":
         private = not (
-            session_path.stat().st_mode & 0o077
-            or session_path.parent.stat().st_mode & 0o077
+                session_path.stat().st_mode & 0o077
+                or session_path.parent.stat().st_mode & 0o077
         )
     with sync_playwright() as playwright:
         installed = Path(getattr(playwright, browser).executable_path).is_file()

@@ -121,7 +121,7 @@ class MarketplaceOptions:
     verbose: bool = False
     session_dir: Optional[Path] = None
     browser_type: str = "chromium"
-
+    sort_by: str = "creation_time_descend"
 
 def random_delay(base: float = 1.0, variance: float = 0.5) -> float:
     """Generate a random delay to simulate human behavior."""
@@ -166,14 +166,14 @@ def get_group_url(group_id: str) -> str:
     return f"https://www.facebook.com/groups/{group_id}?sorting_setting=CHRONOLOGICAL"
 
 
-def get_marketplace_url(query: str, city: str, radius: int) -> str:
+def get_marketplace_url(query: str, city: str, radius: int, sort_by: str = "creation_time_descend") -> str:
     """Build a newest-first Marketplace electronics search URL."""
     city_slug = city.strip().strip("/")
     params = urlencode(
         {
             "query": query,
             "radius": radius,
-            "sortBy": "creation_time_descend",
+            "sortBy": sort_by,
             "category": "electronics",
         }
     )
@@ -862,7 +862,7 @@ def search_marketplace(
     options: MarketplaceOptions,
 ) -> MarketplaceResult:
     """Search Facebook Marketplace for electronics listings."""
-    search_url = get_marketplace_url(query, options.city, options.radius)
+    search_url = get_marketplace_url(query, options.city, options.radius, options.sort_by)
     listings: list[MarketplaceListing] = []
     seen_ids: set[str] = set()
     diagnostics = CollectionDiagnostics(stop_reason="no_new_listings")
