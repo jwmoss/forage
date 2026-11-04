@@ -38,12 +38,19 @@ from forage.models import (
 from forage.parser import (
     filter_comments,
     extract_post_identity,
+    extract_post_id,
+    extract_comment_identity,
     parse_marketplace_listing,
     parse_modern_post,
     parse_modern_comment,
 )
 
 console = Console(stderr=True)
+
+COMMENT_ARTICLES = (
+    '[role="article"][aria-label^="Comment by"], '
+    '[role="article"][aria-label^="Reply by"]'
+)
 
 MARKETPLACE_CENTER_PATTERN = re.compile(
     r'"buyLocation"\s*:\s*\{\s*"latitude"\s*:\s*(-?\d+(?:\.\d+)?),'
@@ -121,6 +128,7 @@ class MarketplaceOptions:
     verbose: bool = False
     session_dir: Optional[Path] = None
     browser_type: str = "chromium"
+    sort_by: str = "creation_time_descend"
 
 
 def random_delay(base: float = 1.0, variance: float = 0.5) -> float:
@@ -166,14 +174,17 @@ def get_group_url(group_id: str) -> str:
     return f"https://www.facebook.com/groups/{group_id}?sorting_setting=CHRONOLOGICAL"
 
 
-def get_marketplace_url(query: str, city: str, radius: int) -> str:
-    """Build a newest-first Marketplace electronics search URL."""
+def get_marketplace_url(
+    query: str, city: str, radius: int, sort_by: str = "creation_time_descend"
+) -> str:
+    """Build a Marketplace electronics search URL with the requested order."""
     city_slug = city.strip().strip("/")
     params = urlencode(
         {
             "query": query,
-            "radius": radius,
-            "sortBy": "creation_time_descend",
+            # Facebook's URL uses kilometers; the CLI and distance check use miles.
+            "radius": round(radius * 1.609344),
+            "sortBy": sort_by,
             "category": "electronics",
         }
     )
@@ -264,7 +275,8 @@ def calculate_date_range(
             date.fromisoformat(options.until), datetime_time()
         ) + timedelta(days=1)
     else:
-        until_date = now
+        # Include posts labeled "Just now" in the default, exclusive cutoff.
+        until_date = now + timedelta(microseconds=1)
 
     if options.since:
         since_date = datetime.combine(
@@ -305,19 +317,8 @@ def create_browser_context(
     return context
 
 
-def _find_comment_articles(container: Page | ElementHandle) -> list[ElementHandle]:
-    """Find likely comment article elements inside a page or post container."""
-    comment_articles = container.query_selector_all(
-        '[role="article"][aria-label^="Comment by"]'
-    )
-    if comment_articles:
-        return comment_articles
-
-    return container.query_selector_all('[role="article"]')
-
-
 def _has_comment_aria(container: Page | ElementHandle) -> bool:
-    return bool(container.query_selector('[role="article"][aria-label^="Comment by"]'))
+    return bool(container.query_selector(COMMENT_ARTICLES))
 
 
 def _comment_article_depth(element: ElementHandle, selector: str) -> int:
@@ -345,6 +346,60 @@ def _comment_article_depth(element: ElementHandle, selector: str) -> int:
         return -1
 
 
+def _collect_comments(
+    container: Page | ElementHandle, options: ScrapeOptions, post_id: str
+) -> list[Comment]:
+    """Parse article-backed comments and preserve their nesting."""
+    labeled = _has_comment_aria(container)
+    selector = COMMENT_ARTICLES if labeled else '[role="article"]'
+    seen: dict[str, Comment] = {}
+    replies: list[tuple[Comment, str]] = []
+
+    def collect(parent: Page | ElementHandle, depth: int) -> list[Comment]:
+        comments: list[Comment] = []
+        for element in parent.query_selector_all(selector):
+            if _comment_article_depth(element, selector) != depth:
+                continue
+            comment = parse_modern_comment(
+                element,
+                skip_reactions=options.skip_reactions,
+                verbose=options.verbose,
+                post_id=post_id,
+            )
+            if comment is None or comment.id in seen:
+                continue
+            seen[comment.id] = comment
+            comment.replies = collect(element, depth + 1)
+            _, parent_id = extract_comment_identity(element)
+            if parent_id:
+                replies.append((comment, parent_id))
+            else:
+                comments.append(comment)
+        return comments
+
+    comments = collect(container, 0 if labeled else 1)
+    for reply, parent_id in replies:
+        if parent_id in seen and parent_id != reply.id:
+            seen[parent_id].replies.append(reply)
+    return filter_comments(
+        comments,
+        min_reactions=options.min_reactions,
+        top_n=options.top_comments,
+    )
+
+
+def _find_post_container(page: Page, post_id: str) -> Optional[ElementHandle]:
+    """Find the requested post's dialog or article without unrelated feed posts."""
+    for dialog in page.query_selector_all('[role="dialog"]'):
+        for link in dialog.query_selector_all("a[href]"):
+            if extract_post_id(link.get_attribute("href") or "") == post_id:
+                return dialog
+    for article in page.query_selector_all('[role="article"]'):
+        if extract_post_identity(article)[0] == post_id:
+            return article
+    return None
+
+
 def scrape_post_comments(
     page: Page,
     article: ElementHandle,
@@ -352,98 +407,44 @@ def scrape_post_comments(
     *,
     post_id: str = "",
 ) -> list[Comment]:
-    """
-    Scrape comments from a post by clicking to expand them.
-
-    This works on the modern Facebook interface.
-    """
+    """Expand visible feed comments, then parse their article hierarchy."""
     if options.skip_comments:
         return []
 
-    comments: list[Comment] = []
-    seen_comment_ids: set[str] = set()
+    for selector in (
+        'span:has-text("View more comments")',
+        'span:has-text("View all")',
+        '[role="button"]:has-text("comments")',
+    ):
+        try:
+            view_more = article.query_selector(selector)
+            if view_more:
+                view_more.click(timeout=2000)
+                human_delay(page, options.delay, options.delay * 0.3)
+                break
+        except Exception:
+            continue
 
     try:
-        # Find all comment containers
-        # Modern Facebook comments are in divs with specific structure
-        comment_elements = _find_comment_articles(article)
-
-        if not comment_elements:
-            # Try alternative selector for comments
-            # Comments often have a specific nesting pattern
-            all_text = article.inner_text()
-            if "Comment" in all_text or "Reply" in all_text:
-                # There might be comments but in a different structure
-                # Try to find elements that look like comments
-                potential_comments = article.query_selector_all('div[dir="auto"]')
-                for elem in potential_comments:
-                    comment = parse_modern_comment(
-                        elem,
-                        skip_reactions=options.skip_reactions,
-                        verbose=options.verbose,
-                        post_id=post_id,
-                    )
-                    if (
-                        comment
-                        and comment.content
-                        and comment.id not in seen_comment_ids
-                    ):
-                        comments.append(comment)
-                        seen_comment_ids.add(comment.id)
-
-        for elem in comment_elements:
-            comment = parse_modern_comment(
-                elem,
-                skip_reactions=options.skip_reactions,
-                verbose=options.verbose,
-                post_id=post_id,
-            )
-            if comment and comment.content and comment.id not in seen_comment_ids:
-                comments.append(comment)
-                seen_comment_ids.add(comment.id)
-
-        # Try clicking "View more comments" links
-        view_more_selectors = [
-            'span:has-text("View more comments")',
-            'span:has-text("View all")',
-            '[role="button"]:has-text("comments")',
-        ]
-
-        for selector in view_more_selectors:
-            try:
-                view_more = article.query_selector(selector)
-                if view_more:
-                    view_more.click()
-                    human_delay(page, options.delay, options.delay * 0.3)
-                    break
-            except Exception:
-                continue
-
-        # After expanding, try to get more comments
-        expanded_comments = _find_comment_articles(article)
-        for elem in expanded_comments:
-            comment = parse_modern_comment(
-                elem,
-                skip_reactions=options.skip_reactions,
-                verbose=options.verbose,
-                post_id=post_id,
-            )
-            if comment and comment.content and comment.id not in seen_comment_ids:
-                comments.append(comment)
-                seen_comment_ids.add(comment.id)
-
-    except Exception as e:
+        container = _find_post_container(page, post_id) or article
+        for control in container.query_selector_all('[role="button"]'):
+            if re.fullmatch(
+                r"View (?:\d+|more) repl(?:y|ies)", control.inner_text().strip()
+            ):
+                control.click(timeout=2000)
+                human_delay(page, options.delay, options.delay * 0.3)
+                container = _find_post_container(page, post_id) or container
+                break
+        return _collect_comments(container, options, post_id)
+    except Exception as error:
         if options.verbose:
-            console.print(f"[yellow]Warning: Error scraping comments: {e}[/yellow]")
-
-    # Apply filters
-    comments = filter_comments(
-        comments,
-        min_reactions=options.min_reactions,
-        top_n=options.top_comments,
-    )
-
-    return comments
+            console.print(
+                f"[yellow]Warning: cannot read feed comments: {error}[/yellow]"
+            )
+        return []
+    finally:
+        if page.query_selector('[role="dialog"]'):
+            page.keyboard.press("Escape")
 
 
 def scrape_comments_from_post_page(
@@ -462,7 +463,6 @@ def scrape_comments_from_post_page(
         return []
 
     comments: list[Comment] = []
-    seen_comment_ids: set[str] = set()
     comment_page = page.context.new_page()
 
     try:
@@ -499,51 +499,12 @@ def scrape_comments_from_post_page(
             except Exception:
                 break
 
-        # Find all comment elements
-        comment_elements = _find_comment_articles(comment_page)
-        use_comment_aria = _has_comment_aria(comment_page)
-        if use_comment_aria:
-            depth_selector = '[role="article"][aria-label^="Comment by"]'
-            top_level_depth = 0
-        else:
-            # Without aria-labels every article matches, including the post
-            # itself: skip it (depth 0) and treat its direct article children
-            # as top-level comments (depth 1).
-            depth_selector = '[role="article"]'
-            top_level_depth = 1
-
-        for elem in comment_elements:
-            if _comment_article_depth(elem, depth_selector) != top_level_depth:
-                continue
-
-            comment = parse_modern_comment(
-                elem,
-                skip_reactions=options.skip_reactions,
-                verbose=options.verbose,
-                post_id=post_id or post_url,
-            )
-            if comment and comment.content and comment.id not in seen_comment_ids:
-                reply_ids: set[str] = set()
-                for reply_elem in _find_comment_articles(elem):
-                    reply = parse_modern_comment(
-                        reply_elem,
-                        skip_reactions=options.skip_reactions,
-                        verbose=options.verbose,
-                        post_id=post_id or post_url,
-                    )
-                    if (
-                        reply
-                        and reply.content
-                        and reply.id != comment.id
-                        and reply.id not in seen_comment_ids
-                        and reply.id not in reply_ids
-                    ):
-                        comment.replies.append(reply)
-                        reply_ids.add(reply.id)
-                        seen_comment_ids.add(reply.id)
-
-                seen_comment_ids.add(comment.id)
-                comments.append(comment)
+        # A permalink may show a feed with unrelated posts beside the target.
+        target_id = post_id or extract_post_id(post_url)
+        if target_id:
+            container = _find_post_container(comment_page, target_id)
+            if container:
+                comments = _collect_comments(container, options, target_id)
 
     except Exception as e:
         if options.verbose:
@@ -556,13 +517,6 @@ def scrape_comments_from_post_page(
             comment_page.close()
         except Exception:
             pass
-
-    # Apply filters
-    comments = filter_comments(
-        comments,
-        min_reactions=options.min_reactions,
-        top_n=options.top_comments,
-    )
 
     return comments
 
@@ -703,7 +657,7 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         f"{len(articles)} are posts"
                     )
 
-                new_posts_this_page = 0
+                new_candidates_this_page = 0
 
                 for i, article in enumerate(articles):
                     identity = extract_post_identity(article)
@@ -735,6 +689,7 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
 
                     seen_post_ids.add(post.id)
                     diagnostics.candidates_seen += 1
+                    new_candidates_this_page += 1
 
                     if post.timestamp:
                         if post.timestamp < since_date:
@@ -766,31 +721,25 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                         )
 
                         # If no comments found and we have a post URL, try navigating to it
-                        if not post.comments:
-                            # Try to find permalink
-                            permalink = article.query_selector(
-                                'a[href*="/posts/"], a[href*="?story_fbid"]'
+                        if not post.comments and post.url:
+                            post.comments = scrape_comments_from_post_page(
+                                page, post.url, options, post_id=post.id
                             )
-                            if permalink:
-                                href = permalink.get_attribute("href")
-                                if href:
-                                    if not href.startswith("http"):
-                                        href = f"https://www.facebook.com{href}"
-                                    post.comments = scrape_comments_from_post_page(
-                                        page, href, options, post_id=post.id
-                                    )
 
                         human_delay(page, options.delay * 0.5, options.delay * 0.2)
 
                     posts.append(post)
-                    new_posts_this_page += 1
 
                     progress.update(task, description=f"Scraped {len(posts)} posts...")
 
                     if options.limit and len(posts) >= options.limit:
                         break
 
-                if new_posts_this_page == 0:
+                if options.limit and len(posts) >= options.limit:
+                    diagnostics.stop_reason = "limit"
+                    break
+
+                if new_candidates_this_page == 0:
                     pages_without_new_posts += 1
                 else:
                     pages_without_new_posts = 0
@@ -862,7 +811,9 @@ def search_marketplace(
     options: MarketplaceOptions,
 ) -> MarketplaceResult:
     """Search Facebook Marketplace for electronics listings."""
-    search_url = get_marketplace_url(query, options.city, options.radius)
+    search_url = get_marketplace_url(
+        query, options.city, options.radius, options.sort_by
+    )
     listings: list[MarketplaceListing] = []
     seen_ids: set[str] = set()
     diagnostics = CollectionDiagnostics(stop_reason="no_new_listings")
@@ -912,27 +863,31 @@ def search_marketplace(
         ):
             previous_count = len(seen_ids)
             for element in page.query_selector_all('a[href*="/marketplace/item/"]'):
+                href = element.get_attribute("href") or ""
+                identity = re.search(r"/marketplace/item/(\d+)", href)
+                if identity is None or identity.group(1) in seen_ids:
+                    continue
                 listing = parse_marketplace_listing(element, verbose=options.verbose)
                 if listing is None:
                     diagnostics.parse_failures += 1
-                if listing and listing.id not in seen_ids:
-                    seen_ids.add(listing.id)
-                    diagnostics.candidates_seen += 1
-                    if _listing_matches_radius(
-                        detail_page,
-                        listing,
-                        center,
-                        options.radius,
-                        options.verbose,
-                    ):
-                        listings.append(listing)
-                    else:
-                        diagnostics.rejected_count += 1
-                    if (
-                        len(listings) >= options.limit
-                        or len(seen_ids) >= options.max_candidates
-                    ):
-                        break
+                    continue
+                seen_ids.add(listing.id)
+                diagnostics.candidates_seen += 1
+                if _listing_matches_radius(
+                    detail_page,
+                    listing,
+                    center,
+                    options.radius,
+                    options.verbose,
+                ):
+                    listings.append(listing)
+                else:
+                    diagnostics.rejected_count += 1
+                if (
+                    len(listings) >= options.limit
+                    or len(seen_ids) >= options.max_candidates
+                ):
+                    break
 
             empty_scrolls = empty_scrolls + 1 if len(seen_ids) == previous_count else 0
             if len(listings) < options.limit and len(seen_ids) < options.max_candidates:

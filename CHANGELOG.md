@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-03
+
+### Added
+
+- Add Marketplace sort choices and support more currency-symbol price formats, inspired by PR #50.
+- Add local `make pre-pr` checks for live Marketplace sorts, group comments, date windows, and saved exports.
+
+### Fixed
+
+- Preserve comment nesting and remove the fallback that treats arbitrary post text as comments.
+- Read relative comment-author links and restrict permalink comments to the requested post.
+- Continue historical searches past newer posts and include posts labeled "Just now" at the default cutoff.
+- Parse compact reaction totals and recognize `multi_permalinks` post links.
+- Skip repeated Marketplace candidates before text parsing and stop before an unnecessary final group scroll.
+- Convert the CLI's miles to Facebook's kilometer radius and use the verified nearest-first sort value.
+- Select Python 3.14 for local development, matching CI.
+
+### Thanks
+
+- Thanks to [@kha-faz](https://github.com/kha-faz) for the currency and Marketplace sort contributions in [PR #50](https://github.com/jwmoss/forage/pull/50).
+
 ## [2.2.0] - 2026-10-10
 
 ### Changed
@@ -247,7 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sensitive files excluded via `.gitignore`
 - Security guidelines in SECURITY.md
 
-[Unreleased]: https://github.com/jwmoss/forage/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/jwmoss/forage/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/jwmoss/forage/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/jwmoss/forage/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jwmoss/forage/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jwmoss/forage/compare/v1.2.1...v2.0.0

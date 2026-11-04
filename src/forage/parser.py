@@ -21,6 +21,14 @@ from forage.models import (
 
 console = Console(stderr=True)
 
+# Keep prices as displayed; this recognizes symbols, not currency identities.
+_PRICE_NUMBER = r"\d(?:[\d., \u00a0\u202f]*\d)?"
+_PRICE_SYMBOL = r"(?:[A-Z]{1,3})?[$£€¥₹₩₽]"
+_PRICE_RE = re.compile(
+    rf"^(?:free|{_PRICE_SYMBOL}\s*{_PRICE_NUMBER}|{_PRICE_NUMBER}\s*{_PRICE_SYMBOL})$",
+    re.IGNORECASE,
+)
+
 
 def _warn_parse_failure(kind: str, error: Exception, *, verbose: bool) -> None:
     """Surface a parse exception instead of silently dropping the element."""
@@ -227,6 +235,10 @@ def extract_post_id(url: str) -> Optional[str]:
 
     parsed = urlparse(url)
 
+    multi_id = parse_qs(parsed.query).get("multi_permalinks", [None])[0]
+    if multi_id and multi_id.isdigit():
+        return multi_id
+
     if "story_fbid" in url:
         params = parse_qs(parsed.query)
         story_fbid = params.get("story_fbid", [None])[0]
@@ -339,7 +351,7 @@ def extract_post_identity(
 ) -> tuple[Optional[str], Optional[str]]:
     """Return this article's reliable Facebook permalink identity, if available."""
     for link in article.query_selector_all(
-        'a[href*="/posts/"], a[href*="story_fbid="]'
+        'a[href*="/posts/"], a[href*="story_fbid="], a[href*="multi_permalinks="]'
     ):
         href = link.get_attribute("href") or ""
         if "comment_id=" in href:
@@ -465,7 +477,7 @@ def parse_modern_post(
 
         # Find timestamp - look for aria-label with time info or links with timestamps
         time_links = article.query_selector_all(
-            'a[href*="/posts/"], a[href*="?story_fbid"]'
+            'a[href*="/posts/"], a[href*="story_fbid="], a[href*="multi_permalinks="]'
         )
         timestamp = _parse_post_timestamp(time_links, now=now)
 
@@ -499,9 +511,9 @@ def parse_modern_post(
             # Try finding reaction count in text like "All reactions:\n44"
             if reactions.total == 0:
                 # Look for "All reactions:" followed by a number
-                match = re.search(r"All reactions:?\s*\n?(\d+)", all_text)
+                match = re.search(r"All reactions:?\s*([\d,.]+\s*[kKmM]?)", all_text)
                 if match:
-                    reactions = Reactions(total=int(match.group(1)))
+                    reactions = Reactions(total=_parse_compact_int(match.group(1)))
 
                 # Also try just standalone numbers near "reactions" or after names
                 if reactions.total == 0:
@@ -550,6 +562,25 @@ def parse_modern_post(
         return None
 
 
+def extract_comment_identity(
+    element: ElementHandle,
+) -> tuple[Optional[str], Optional[str]]:
+    """Return a comment's native ID and its native reply-parent ID."""
+    for link in element.query_selector_all('a[href*="comment_id="]'):
+        if not link.evaluate(
+            "(node, root) => node.closest('[role=article]') === root", element
+        ):
+            continue
+        params = parse_qs(urlparse(link.get_attribute("href") or "").query)
+        parent_id = params.get("comment_id", [None])[0]
+        reply_id = params.get("reply_comment_id", [None])[0]
+        if reply_id:
+            return reply_id, parent_id
+        if parent_id:
+            return parent_id, None
+    return None, None
+
+
 def parse_modern_comment(
     element: ElementHandle,
     *,
@@ -576,36 +607,30 @@ def parse_modern_comment(
         # Try to find profile link
         links = element.query_selector_all('a[role="link"]')
         for link in links:
+            if not link.evaluate(
+                "(node, root) => node.closest('[role=article]') === root", element
+            ):
+                continue
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
+            profile = urlparse(urljoin("https://www.facebook.com", href))
             if (
                 text
                 and len(text) < 50
-                and "facebook.com/" in href
-                and "/groups/" not in href
+                and profile.hostname in {"facebook.com", "www.facebook.com"}
+                and ("/user/" in profile.path or "/groups/" not in profile.path)
+                and "comment_id=" not in href
             ):
                 if author_name == "Unknown":
                     author_name = text
-                profile_url = href
+                profile_url = profile.geturl()
                 break
 
         content, _ = _article_content(element, author_name)
         if not content:
             return None
 
-        comment_id = None
-        for link in element.query_selector_all('a[href*="comment_id="]'):
-            if not link.evaluate(
-                "(node, root) => node.closest('[role=article]') === root.closest('[role=article]')",
-                element,
-            ):
-                continue
-            params = parse_qs(urlparse(link.get_attribute("href") or "").query)
-            comment_id = (
-                params.get("reply_comment_id") or params.get("comment_id") or [None]
-            )[0]
-            if comment_id:
-                break
+        comment_id, _ = extract_comment_identity(element)
         comment_id = comment_id or _stable_id(
             "comment", post_id, author_name, profile_url or "", content
         )
@@ -659,18 +684,14 @@ def parse_marketplace_listing(
             line.strip() for line in element.inner_text().splitlines() if line.strip()
         ]
         price_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.lower() == "free" or line.startswith("$")
-            ),
+            (index for index, line in enumerate(lines) if _PRICE_RE.fullmatch(line)),
             None,
         )
         if price_index is None or price_index + 1 >= len(lines):
             return None
 
         details = lines[price_index + 1 :]
-        while details and details[0].startswith("$"):
+        while details and _PRICE_RE.fullmatch(details[0]):
             details.pop(0)
         if not details:
             return None
