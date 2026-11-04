@@ -121,6 +121,22 @@ def login(ctx: Context, browser: str, session_dir: Optional[Path]):
     help="Stop after this many candidates, including radius exclusions",
 )
 @click.option("-o", "--output", type=click.Path(path_type=Path), default=None)
+@click.option(
+    "--sort-by",
+    type=click.Choice(
+        [
+            "suggested",
+            "creation_time_descend",
+            "price_ascend",
+            "price_descend",
+            "distance_ascend",
+        ],
+        case_sensitive=False,
+    ),
+    default="creation_time_descend",
+    show_default=True,
+    help="Requested Marketplace sort order; Facebook controls the results",
+)
 @click.option("--session-dir", type=click.Path(path_type=Path), default=None)
 @click.option("--headless/--no-headless", default=True)
 @click.option(
@@ -137,12 +153,13 @@ def marketplace(
     radius: str,
     limit: int,
     max_candidates: int,
+    sort_by: str,
     output: Optional[Path],
     session_dir: Optional[Path],
     headless: bool,
     browser: str,
 ) -> None:
-    """Search Marketplace electronics listings, newest first."""
+    """Search Marketplace electronics listings (newest first by default)."""
     if not session_exists(session_dir):
         console.print("[red]Please run 'forage login' first.[/red]")
         raise SystemExit(3)
@@ -152,6 +169,7 @@ def marketplace(
         radius=int(radius),
         limit=limit,
         max_candidates=max_candidates,
+        sort_by=sort_by,
         headless=headless,
         verbose=ctx.verbose,
         session_dir=session_dir,

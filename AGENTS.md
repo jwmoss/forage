@@ -14,6 +14,7 @@ uv run forage --help                 # Run CLI
 uv run ty check src/                 # Type check (Astral's ty)
 make check                           # Lint, type check, and build
 make test                            # Read-only live Facebook checks
+make pre-pr                          # Static and live checks; set FORAGE_E2E_GROUP
 uv run ruff check src/ scripts/       # Lint
 uv run ruff format src/ scripts/      # Format
 ```
@@ -60,6 +61,8 @@ Random viewport sizes, `human_delay()` with variance, real Chromium browser, ses
 
 Use `make test` for real CLI reads through the saved Facebook session. Install Chromium first.
 Set `FORAGE_E2E_GROUP` to test a group; otherwise the test searches Marketplace for computers.
+Before you create a PR, run `FORAGE_E2E_GROUP=<active-group> make pre-pr`.
+Set `FORAGE_E2E_UNTIL=YYYY-MM-DD` to also check a historical window with known posts.
 Keep unit tests, mock tests, and fake-server suites out of this repo. CI runs static checks and package builds.
 Live tests must not log in, change credentials, or write to Facebook.
 

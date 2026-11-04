@@ -143,11 +143,19 @@ Commands:
 
 ```bash
 uv run forage marketplace "rtx 4070" --city wilmington --radius 40 --limit 20 -o listings.json
+uv run forage marketplace "computer" --sort-by price_ascend
 ```
 
 `--limit` counts accepted listings. `--max-candidates` bounds the search cost, including rejected candidates; its default is 200.
 Forage excludes distant listings and listings whose coordinates it cannot verify. City is the search center, not a city-only filter.
-The current parser supports electronics with dollar prices or “Free” labels. Search relevance follows Facebook's results.
+The parser accepts “Free” and prices with `$`, `£`, `€`, `¥`, `₹`, `₩`, or `₽` symbols.
+It accepts prefixes such as `CA$` and `R$`, trailing symbols such as `80 €`, and space-separated digits.
+Prices remain display strings. Currency conversion, currency-code-only prices, and localized free labels are unsupported.
+Search relevance follows Facebook's results.
+
+`--sort-by` accepts `creation_time_descend` (default), `suggested`, `price_ascend`, `price_descend`, or `distance_ascend`.
+These values request Facebook's sort order. They do not sort the collected subset locally.
+The CLI radius uses miles; Forage converts it to kilometers for Facebook's search URL.
 
 ### Local diagnosis and saved exports
 
@@ -293,12 +301,21 @@ uv run playwright install chromium
 # Read Marketplace through the saved Facebook session
 make test
 
-# Read one post from a group you can access
+# Read posts and comments from an active group you can access
 FORAGE_E2E_GROUP=your-group-slug make test
+
+# Run static checks, all Marketplace sorts, group comments, and saved exports before a PR
+FORAGE_E2E_GROUP=your-group-slug make pre-pr
+
+# Also check a historical window with known posts (seven days through the inclusive end date)
+FORAGE_E2E_GROUP=your-group-slug FORAGE_E2E_UNTIL=2026-10-29 make pre-pr
 ```
 
 Live tests run the real CLI and Facebook pages. They do not use fixtures or mock servers.
 They need an existing login session. CI runs static checks and package build/install checks.
+Group checks require an active group with visible reply threads. The checks use temporary local files for exports.
+Marketplace checks confirm Facebook's selected sort control for each CLI result URL.
+Live data changes. These checks do not cover a rare parser case unless the selected pages contain it.
 
 
 ## Architecture
@@ -324,7 +341,7 @@ src/forage/
 
 ## Roadmap
 
-Prioritize sanitized DOM fixtures and verified selector updates. Add incremental collection only after identity and completeness checks support it.
+Prioritize read-only live regression checks and verified selector updates. Add incremental collection only after identity and completeness checks support it.
 Use shell loops for batches, system scheduling for recurring commands, and SQLite or jq for analysis.
 
 ### Contributing

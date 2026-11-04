@@ -56,7 +56,12 @@ Example: `feat: add SQLite export option`
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feat/my-feature`)
 3. Make your changes
-4. Ensure tests pass (`make check`; run `make test` with a saved session)
+4. Run the local PR checks with a saved session:
+   ```bash
+   FORAGE_E2E_GROUP=your-group-slug FORAGE_E2E_UNTIL=YYYY-MM-DD make pre-pr
+   ```
+   Select an active group with visible reply threads and a historical window with known posts.
+   `FORAGE_E2E_UNTIL` is optional. It tests the seven days before the selected inclusive end date.
 5. Ensure type checking passes (`uv run ty check src/forage/`)
 6. Commit with a descriptive message
 7. Push and open a pull request
@@ -66,8 +71,11 @@ Example: `feat: add SQLite export option`
 - Verify behavior through the real CLI against Facebook.
 - Keep live checks read-only and use the existing session.
 - Do not add unit tests, mock tests, or fake-server suites.
-- Mock external dependencies (Playwright, network)
-- Aim for good coverage of edge cases
+- Run `make test-marketplace` to check all five sort orders against Facebook's selected controls.
+- Run `FORAGE_E2E_GROUP=your-group-slug make test-group` to check posts, comments, and real-data exports.
+- Run `make pre-pr` with the group variables above before you create a PR.
+- Keep session files and private records out of commits and PR descriptions.
+- Live checks need suitable records. A passing run does not prove rare cases that the live pages do not contain.
 
 ## Reporting Issues
 
