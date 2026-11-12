@@ -96,8 +96,61 @@ def parse_timestamp(text: str, *, now: Optional[datetime] = None) -> Optional[da
     now = now or datetime.now()
     lower_text = text.lower()
 
-    if "just now" in lower_text:
+    if "just now" in lower_text or lower_text in (
+        "ahora",
+        "justo ahora",
+        "hace un momento",
+    ):
         return now
+    # Spanish UI: "hace 3 h", "1 sem", "3 meses", "Ayer a las 15:45", "10 de noviembre a las 9:30"
+    lower_text = re.sub(r"^hace\s+", "", lower_text)
+    m_es = re.search(r"(\d+)\s*(?:sem|semanas?)\b", lower_text)
+    if m_es:
+        return now - timedelta(weeks=int(m_es.group(1)))
+    m_es = re.search(r"(\d+)\s*(?:mes|meses)\b", lower_text)
+    if m_es:
+        return now - timedelta(days=30 * int(m_es.group(1)))
+    m_es = re.search(r"(\d+)\s*(?:años?)\b", lower_text)
+    if m_es:
+        return now - timedelta(days=365 * int(m_es.group(1)))
+    m_es = re.search(r"ayer(?:\s+a\s+las?)?\s*(\d{1,2}):(\d{2})", lower_text)
+    if m_es:
+        d = now - timedelta(days=1)
+        return d.replace(
+            hour=int(m_es.group(1)), minute=int(m_es.group(2)), second=0, microsecond=0
+        )
+    MESES_ES = {
+        "enero": 1,
+        "febrero": 2,
+        "marzo": 3,
+        "abril": 4,
+        "mayo": 5,
+        "junio": 6,
+        "julio": 7,
+        "agosto": 8,
+        "septiembre": 9,
+        "setiembre": 9,
+        "octubre": 10,
+        "noviembre": 11,
+        "diciembre": 12,
+    }
+    m_es = re.search(
+        r"(\d{1,2})\s+de\s+([a-záéíóú]+)(?:\s+de\s+(\d{4}))?(?:\s+a\s+las?\s+(\d{1,2}):(\d{2}))?",
+        lower_text,
+    )
+    if m_es and m_es.group(2) in MESES_ES:
+        try:
+            return now.replace(
+                year=int(m_es.group(3) or now.year),
+                month=MESES_ES[m_es.group(2)],
+                day=int(m_es.group(1)),
+                hour=int(m_es.group(4) or 0),
+                minute=int(m_es.group(5) or 0),
+                second=0,
+                microsecond=0,
+            )
+        except ValueError:
+            pass
 
     relative_patterns = [
         (
@@ -303,7 +356,7 @@ def _article_content(
     """Read this article's text without nested comments or interface controls."""
     if expand:
         for control in element.query_selector_all('button, [role="button"]'):
-            if control.inner_text().strip() != "See more":
+            if control.inner_text().strip() not in ("See more", "Ver más"):
                 continue
             if not control.evaluate(
                 "(node, root) => node.closest('[role=article]') === root", element
@@ -318,7 +371,7 @@ def _article_content(
     snapshot = element.evaluate("""node => {
         const copy = node.cloneNode(true);
         copy.querySelectorAll('[role="article"]').forEach(child => child.remove());
-        const truncated = /See more/.test(copy.textContent);
+        const truncated = /See more|Ver más/.test(copy.textContent);
         copy.querySelectorAll('button, [role="button"]').forEach(child => child.remove());
         copy.querySelectorAll('br').forEach(child => child.replaceWith("\\n"));
         const bodies = Array.from(copy.querySelectorAll('[data-ad-preview="message"], [data-ad-comet-preview="message"]'));
@@ -329,7 +382,7 @@ def _article_content(
     parts = snapshot["parts"] or snapshot["fallback"].splitlines()
     content = []
     for part in parts:
-        cleaned = re.sub(r"\s*…?\s*See more\s*$", "", part).strip()
+        cleaned = re.sub(r"\s*…?\s*(See more|Ver más)\s*$", "", part).strip()
         if not cleaned or cleaned in {
             author_name,
             "Like",
@@ -337,9 +390,14 @@ def _article_content(
             "Share",
             "Reply",
             "·",
+            "Me gusta",
+            "Comentar",
+            "Compartir",
+            "Responder",
+            "Enviar",
         }:
             continue
-        if re.fullmatch(r"\d+[hdwm]", cleaned):
+        if re.fullmatch(r"\d+\s*(?:[hdwm]|min|sem|a)", cleaned):
             continue
         if cleaned not in content:
             content.append(cleaned)
@@ -464,12 +522,21 @@ def parse_modern_post(
             "\ufeffPeople you may know",
             "Suggested for you",
             "Groups you might like",
+            "Personas que quizás conozcas",
+            "Sugerencias para ti",
+            "Grupos que te podrían gustar",
         ]
         if author_name in skip_posts or any(s in all_text[:100] for s in skip_posts):
             return None
 
         # Filter out known non-author text
-        invalid_authors = ["Online status indicator", "Active", "Sponsored"]
+        invalid_authors = [
+            "Online status indicator",
+            "Active",
+            "Sponsored",
+            "Patrocinado",
+            "Activo",
+        ]
         if author_name in invalid_authors:
             author_name = "Unknown"
 
@@ -499,11 +566,14 @@ def parse_modern_post(
         if not skip_reactions:
             # Try aria-labels first
             reaction_elements = article.query_selector_all(
-                '[aria-label*="reaction"], [aria-label*="like"]'
+                '[aria-label*="reaction"], [aria-label*="like"], [aria-label*="reacci"], [aria-label*="Me gusta"]'
             )
             for elem in reaction_elements:
                 aria = elem.get_attribute("aria-label") or ""
-                if "reaction" in aria.lower() or "like" in aria.lower():
+                if any(
+                    w in aria.lower()
+                    for w in ("reaction", "like", "reacci", "me gusta")
+                ):
                     reactions = parse_reactions_text(aria)
                     if reactions.total > 0:
                         break
@@ -511,7 +581,10 @@ def parse_modern_post(
             # Try finding reaction count in text like "All reactions:\n44"
             if reactions.total == 0:
                 # Look for "All reactions:" followed by a number
-                match = re.search(r"All reactions:?\s*([\d,.]+\s*[kKmM]?)", all_text)
+                match = re.search(
+                    r"(?:All reactions|Todas las reacciones):?\s*([\d,.]+\s*[kKmM]?)",
+                    all_text,
+                )
                 if match:
                     reactions = Reactions(total=_parse_compact_int(match.group(1)))
 
@@ -527,17 +600,21 @@ def parse_modern_post(
         # Comments count
         comments_count = 0
         comment_buttons = article.query_selector_all(
-            '[aria-label*="comment"], [aria-label*="Comment"]'
+            '[aria-label*="comment"], [aria-label*="Comment"], [aria-label*="omentario"]'
         )
         for btn in comment_buttons:
             aria = btn.get_attribute("aria-label") or ""
-            match = re.search(r"([\d,.]+\s*[kKmM]?)\s*comments?\b", aria)
+            match = re.search(
+                r"([\d,.]+\s*(?:[kKmM]|mil)?)\s*(?:comments?|comentarios?)\b", aria
+            )
             if match:
                 comments_count = _parse_compact_int(match.group(1))
                 break
 
         if not comments_count:
-            match = re.search(r"([\d,.]+\s*[kKmM]?)\s*comments?\b", all_text)
+            match = re.search(
+                r"([\d,.]+\s*(?:[kKmM]|mil)?)\s*(?:comments?|comentarios?)\b", all_text
+            )
             if match:
                 comments_count = _parse_compact_int(match.group(1))
 
@@ -640,7 +717,7 @@ def parse_modern_comment(
 
         if not skip_reactions:
             reaction_elems = element.query_selector_all(
-                '[aria-label*="reaction"], [aria-label*="like"]'
+                '[aria-label*="reaction"], [aria-label*="like"], [aria-label*="reacci"], [aria-label*="Me gusta"]'
             )
             for elem in reaction_elems:
                 aria = elem.get_attribute("aria-label") or ""

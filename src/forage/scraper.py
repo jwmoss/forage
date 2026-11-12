@@ -49,7 +49,9 @@ console = Console(stderr=True)
 
 COMMENT_ARTICLES = (
     '[role="article"][aria-label^="Comment by"], '
-    '[role="article"][aria-label^="Reply by"]'
+    '[role="article"][aria-label^="Reply by"], '
+    '[role="article"][aria-label^="Comentario de"], '
+    '[role="article"][aria-label^="Respuesta de"]'
 )
 
 MARKETPLACE_CENTER_PATTERN = re.compile(
@@ -636,11 +638,17 @@ def scrape_group(group: str, options: ScrapeOptions) -> ScrapeResult:
                     break
 
                 all_articles = feed.query_selector_all('[role="article"]')
+                # Current group feeds render posts as direct children of the feed without
+                # role="article"; the remaining [role="article"] nodes are empty placeholders.
+                if not any(len(a.inner_text().strip()) >= 20 for a in all_articles):
+                    all_articles = feed.query_selector_all(":scope > div")
                 articles = []
                 for article in all_articles:
                     aria_label = article.get_attribute("aria-label") or ""
                     # Skip elements that are explicitly comments
-                    if aria_label.startswith("Comment by"):
+                    if aria_label.startswith(
+                        ("Comment by", "Comentario de", "Respuesta de")
+                    ):
                         continue
                     # Skip empty elements (loading placeholders)
                     text = article.inner_text().strip()
